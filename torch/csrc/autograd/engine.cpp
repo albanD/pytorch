@@ -271,6 +271,9 @@ PyObject *THPEngine_run_backward(THPEngine *self, PyObject *args, PyObject *kwar
     for (auto &it : not_ready) {
       if (!names.empty()) names += ", ";
       names += Py_TYPE((PyObject *)it.first)->tp_name;
+      // Mark this function as not valid
+      int missing_dep = dependencies[(THPFunction *)it.first];
+      PyObject_CallMethod((PyObject *)it.first, "set_missing_dep", "i", missing_dep);
     }
     THPUtils_assert(not_ready.empty(),
         "could not compute gradients for some functions (%s)", names.c_str());

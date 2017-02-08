@@ -42,7 +42,17 @@ class Function(_C._FunctionBase):
             :class:`Function` that created corresponding input, and an index
             of the previous function output that's been used.
     """
+    def __init__(self):
+        super(Function, self).__init__()
+        self.missing_dep = 0
+
     __call__ = _C._FunctionBase._do_forward
+
+    def set_missing_dep(self, missing_dep):
+        self.missing_dep = missing_dep
+
+    def get_missing_dep(self):
+        return self.missing_dep
 
     def save_for_backward(self, *tensors):
         """Saves given tensors for a future call to :func:`~Function.backward`.
