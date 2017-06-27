@@ -1298,6 +1298,24 @@ class TestAutograd(TestCase):
         c.backward(torch.ones(c.size()))
         self.assertEqual(x.grad.data, torch.ones(x.size()))
 
+    def test_variable_traverse(self):
+        def get_out_and_unrefed_cycle():
+            inp = Variable(torch.randn(10), requires_grad=True)
+            tmp = inp.view(10,1)
+            out = tmp.view(10)
+
+            # Create a reference cycle that contains both a Variable
+            # and it's grad_fn Function
+            my_list = []
+            my_list.append(tmp)
+            my_list.append(tmp.grad_fn)
+            my_list.append(my_list)
+
+            return out
+
+        out = get_out_and_unrefed_cycle()
+        gc.collect()
+        out.backward(torch.randn(out.size()))
 
 def index_variable(shape, max_indices):
     if not isinstance(shape, tuple):
