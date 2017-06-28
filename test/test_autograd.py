@@ -1304,11 +1304,10 @@ class TestAutograd(TestCase):
             tmp = inp.view(10,1)
             out = tmp.view(10)
 
-            # Create a reference cycle that contains both a Variable
-            # and it's grad_fn Function
+            # Create a reference cycle that contains both an
+            # intermediary Variable in the graph
             my_list = []
             my_list.append(tmp)
-            my_list.append(tmp.grad_fn)
             my_list.append(my_list)
 
             return out
