@@ -19,6 +19,54 @@ def _addindent(s_, numSpaces):
     s = first + '\n' + s
     return s
 
+def detach_variable(inputs):
+    if isinstance(inputs, tuple):
+        out = []
+        for inp in inputs:
+            if torch.is_tensor(inp):
+                x = inp.detach()
+                if inp.requires_grad:
+                    x.requires_grad_()
+                    x.retain_grad()
+                inp = x
+            out.append(inp)
+        return tuple(out)
+    elif torch.is_tensor(inputs):
+        x = inputs.detach()
+        if inputs.requires_grad:
+            x.requires_grad_()
+            x.retain_grad()
+        return x
+    else:
+        raise RuntimeError(
+            "Only tuple of tensors or single tensor is supported. Got Unsupported input type: ", type(inputs).__name__)
+
+class HookFunc(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, mod, *args):
+        # Forward directly because we don't want any hooks
+        detached_args = detach_variable(args)
+        with torch.enable_grad():
+            out = mod.forward_(*detached_args)
+
+        if isinstance(out, tuple):
+            outs = out
+        else:
+            outs = (out,)
+
+        ctx.save_for_backward(*outs)
+        ctx.detached_args = detached_args
+
+        return detach_variable(out)
+
+    @staticmethod
+    def backward(ctx, *gO):
+        if not torch.autograd._is_checkpoint_valid():
+            raise RuntimeError("nn.Module backward hooks are not compatible with .grad(), please use .backward() if possible")
+        outs = ctx.saved_tensors
+        inps = ctx.detached_args
+        torch.autograd.backward(outs, gO)
+        return (None,) + tuple(inp.grad for inp in inps)
 
 class Module(object):
     r"""Base class for all neural network modules.
@@ -397,6 +445,9 @@ class Module(object):
         else:
             return self._apply(lambda t: t.to(device))
 
+    def backward_hook_forward_(self, *inp):
+        return HookFunc.apply(self, *inp)
+
     def register_backward_hook(self, hook):
         r"""Registers a backward hook on the module.
 
@@ -416,6 +467,11 @@ class Module(object):
                 a handle that can be used to remove the added hook by calling
                 ``handle.remove()``
         """
+
+        # Replace forward function with the one for backward hooks
+        self.forward_ = self.forward
+        self.forward = self.backward_hook_forward_
+
         handle = hooks.RemovableHandle(self._backward_hooks)
         self._backward_hooks[handle.id] = hook
         return handle
