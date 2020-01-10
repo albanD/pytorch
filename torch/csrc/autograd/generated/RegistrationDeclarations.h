@@ -757,8 +757,6 @@ int64_t sparse_dim(const Tensor & self); // aten::sparse_dim(Tensor self) -> int
 Tensor sparse_mask(const Tensor & self, const Tensor & mask); // aten::sparse_mask(Tensor self, Tensor mask) -> Tensor
 Tensor & sparse_resize_(Tensor & self, IntArrayRef size, int64_t sparse_dim, int64_t dense_dim); // aten::sparse_resize_(Tensor(a!) self, int[] size, int sparse_dim, int dense_dim) -> Tensor(a!)
 Tensor & sparse_resize_and_clear_(Tensor & self, IntArrayRef size, int64_t sparse_dim, int64_t dense_dim); // aten::sparse_resize_and_clear_(Tensor(a!) self, int[] size, int sparse_dim, int dense_dim) -> Tensor(a!)
-std::vector<Tensor> split(const Tensor & self, int64_t split_size, int64_t dim); // aten::split.Tensor(Tensor(a) self, int split_size, int dim=0) -> Tensor(a)[]
-std::vector<Tensor> split_with_sizes(const Tensor & self, IntArrayRef split_sizes, int64_t dim); // aten::split_with_sizes(Tensor self, int[] split_sizes, int dim=0) -> Tensor[]
 Tensor sqrt(const Tensor & self); // aten::sqrt(Tensor self) -> Tensor
 Tensor & sqrt_(Tensor & self); // aten::sqrt_(Tensor(a!) self) -> Tensor(a!)
 Tensor & sqrt_out(Tensor & out, const Tensor & self); // aten::sqrt.out(Tensor self, *, Tensor(a!) out) -> Tensor(a!)

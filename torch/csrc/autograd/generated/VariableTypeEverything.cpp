@@ -56181,16 +56181,6 @@ Tensor & sparse_resize_and_clear_(Tensor & self, IntArrayRef size, int64_t spars
 }
 std::vector<Tensor> split(const Tensor & self, int64_t split_size, int64_t dim) {
   RECORD_FUNCTION("split", std::vector<c10::IValue>({self}), Node::peek_at_next_sequence_nr());
-  auto& self_ = unpack(self, "self", 0);
-  std::shared_ptr<SplitBackward> grad_fn;
-  if (compute_requires_grad( self )) {
-    grad_fn = std::shared_ptr<SplitBackward>(new SplitBackward(), deleteNode);
-    grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_sizes = self.sizes().vec();
-    grad_fn->self_ = SavedVariable(self, false);
-    grad_fn->split_size = split_size;
-    grad_fn->dim = dim;
-  }
   torch::jit::Node* node = nullptr;
   std::shared_ptr<jit::tracer::TracingState> tracer_state;
   if (jit::tracer::isTracing()) {
@@ -56206,25 +56196,7 @@ std::vector<Tensor> split(const Tensor & self, int64_t split_size, int64_t dim) 
   
     jit::tracer::setTracingState(nullptr);
   }
-  #ifndef NDEBUG
-  c10::optional<Storage> self__storage_saved =
-    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
-  c10::intrusive_ptr<TensorImpl> self__impl_saved;
-  if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
-  #endif
-  auto tmp = ([&]() {
-    at::AutoNonVariableTypeMode non_var_type_mode(true);
-    return at::split(self_, split_size, dim);
-  })();
-  auto result = std::move(tmp);
-  #ifndef NDEBUG
-  if (self__storage_saved.has_value())
-    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
-  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
-  #endif
-  if (grad_fn) {
-      set_history(flatten_tensor_args( result ), grad_fn);
-  }
+  auto result = TypeDefault::split(self, split_size, dim);
   if (tracer_state) {
     jit::tracer::setTracingState(std::move(tracer_state));
     jit::tracer::addOutput(node, result);
@@ -56233,16 +56205,6 @@ std::vector<Tensor> split(const Tensor & self, int64_t split_size, int64_t dim) 
 }
 std::vector<Tensor> split_with_sizes(const Tensor & self, IntArrayRef split_sizes, int64_t dim) {
   RECORD_FUNCTION("split_with_sizes", std::vector<c10::IValue>({self}), Node::peek_at_next_sequence_nr());
-  auto& self_ = unpack(self, "self", 0);
-  std::shared_ptr<SplitWithSizesBackward> grad_fn;
-  if (compute_requires_grad( self )) {
-    grad_fn = std::shared_ptr<SplitWithSizesBackward>(new SplitWithSizesBackward(), deleteNode);
-    grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_sizes = self.sizes().vec();
-    grad_fn->self_ = SavedVariable(self, false);
-    grad_fn->split_sizes = split_sizes.vec();
-    grad_fn->dim = dim;
-  }
   torch::jit::Node* node = nullptr;
   std::shared_ptr<jit::tracer::TracingState> tracer_state;
   if (jit::tracer::isTracing()) {
@@ -56258,25 +56220,7 @@ std::vector<Tensor> split_with_sizes(const Tensor & self, IntArrayRef split_size
   
     jit::tracer::setTracingState(nullptr);
   }
-  #ifndef NDEBUG
-  c10::optional<Storage> self__storage_saved =
-    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
-  c10::intrusive_ptr<TensorImpl> self__impl_saved;
-  if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
-  #endif
-  auto tmp = ([&]() {
-    at::AutoNonVariableTypeMode non_var_type_mode(true);
-    return at::split_with_sizes(self_, split_sizes, dim);
-  })();
-  auto result = std::move(tmp);
-  #ifndef NDEBUG
-  if (self__storage_saved.has_value())
-    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
-  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
-  #endif
-  if (grad_fn) {
-      set_history(flatten_tensor_args( result ), grad_fn);
-  }
+  auto result = TypeDefault::split_with_sizes(self, split_sizes, dim);
   if (tracer_state) {
     jit::tracer::setTracingState(std::move(tracer_state));
     jit::tracer::addOutput(node, result);
@@ -68949,7 +68893,7 @@ auto registerer = torch::RegisterOperators()
     .impl_unboxedOnlyKernel<std::vector<Tensor> (const Tensor &, int64_t, int64_t), &VariableType::split>(TensorTypeId::VariableTensorId)
     .aliasAnalysis(c10::AliasAnalysisKind::FROM_SCHEMA))
   .op(torch::RegisterOperators::options()
-    .schema("aten::split_with_sizes(Tensor self, int[] split_sizes, int dim=0) -> Tensor[]")
+    .schema("aten::split_with_sizes(Tensor(a) self, int[] split_sizes, int dim=0) -> Tensor(a)[]")
     .impl_unboxedOnlyKernel<std::vector<Tensor> (const Tensor &, IntArrayRef, int64_t), &VariableType::split_with_sizes>(TensorTypeId::VariableTensorId)
     .aliasAnalysis(c10::AliasAnalysisKind::FROM_SCHEMA))
   .op(torch::RegisterOperators::options()
