@@ -12366,6 +12366,8 @@ std::vector<Tensor> unbind(const Tensor & self, int64_t dim) {
     return at::unbind(self_, dim);
   })();
   auto result = as_view(self, tmp, true);
+  
+  disable_rebase_history(result);
   #ifndef NDEBUG
   if (self__storage_saved.has_value())
     AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
