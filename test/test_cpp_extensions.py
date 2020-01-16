@@ -841,6 +841,31 @@ class TestCppExtension(common.TestCase):
                 warn_mod.foo(t, 1)
             self.assertEqual(len(w), 0)
 
+    def test_autograd_from_cpp(self):
+        source = '''
+        void run_back(at::Tensor x) {
+            x.backward({});
+        }
+
+        void run_back_no_gil(at::Tensor x) {
+            pybind11::gil_scoped_release no_gil;
+            x.backward({});
+        }
+        '''
+
+        print("loading")
+        test_backward_deadlock = torch.utils.cpp_extension.load_inline(name='test_backward_deadlock',
+                                                                       cpp_sources=[source],
+                                                                       functions=['run_back', 'run_back_no_gil'],)
+
+        print("loading")
+        foo = torch.rand(20, requires_grad=True).sum()
+        with self.assertRaisesRegex(RuntimeError, "The autograd engine was called while holding the GIL."):
+            test_backward_deadlock.run_back(foo)
+
+        foo = torch.rand(20, requires_grad=True).sum()
+        test_backward_deadlock.run_back_no_gil(foo)
+
 
 class TestMSNPUTensor(common.TestCase):
     @classmethod
