@@ -293,11 +293,6 @@ struct TORCH_API Engine {
       Node* func,
       InputBuffer& inputs);
 
-  // initialize the thread local ready queue with the ready queue that is created
-  // elsewhere (i.e. thread_init, Engine::execute, etc), or create a new
-  // ready queue if ready_queue is not provided.
-  void init_local_ready_queue(std::shared_ptr<ReadyQueue> ready_queue = nullptr);
-
   std::shared_ptr<ReadyQueue> ready_queue(
       const std::shared_ptr<GraphTask>& graph_task,
       at::Device device);
@@ -312,9 +307,9 @@ struct TORCH_API Engine {
       std::shared_ptr<GraphTask> graph_task,
       const std::shared_ptr<Node>& fn,
       std::exception& e);
-  virtual void thread_main(
-      const std::shared_ptr<GraphTask>& task,
-      bool reentrant_thread);
+  virtual void process_ready_queue(
+      const std::shared_ptr<ReadyQueue>& ready_queue,
+      const std::shared_ptr<GraphTask>& task = nullptr);
   void reentrant_thread_init();
   void add_thread_pool_task(const std::weak_ptr<GraphTask>& graph_task);
   void set_device(int device);
