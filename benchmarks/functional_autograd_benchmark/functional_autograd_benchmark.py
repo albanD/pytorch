@@ -2,12 +2,15 @@ import torch
 from torch.autograd import functional
 
 import time
+import json
 import argparse
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 import ppl_models
 import vision_models
 import audio_text_models
+
+from utils import get_str
 
 FAST_TASKS_NO_DOUBLE_BACK = [
     "vjp",
@@ -24,17 +27,19 @@ ALL_TASKS = FAST_TASKS + [
     "hessian"
 ]
 
-ModelDef = namedtuple("ModelDef", ["name", "getter", "tasks"])
+DOUBLE_BACKWARD_TASKS = ["jvp", "hvp", "vhp", "hessian"]
+
+ModelDef = namedtuple("ModelDef", ["name", "getter", "tasks", "blacklist"])
 
 MODELS = [
-    ModelDef("resnet18", vision_models.get_resnet18, FAST_TASKS),
-    ModelDef("fcn_resnet", vision_models.get_fcn_resnet, FAST_TASKS),
-    ModelDef("ppl_simple_reg", ppl_models.get_simple_regression, ALL_TASKS),
-    ModelDef("ppl_robust_reg", ppl_models.get_robust_regression, ALL_TASKS),
-    # ModelDef("ppl_flakyness", ppl_models.get_test_flakyness, ALL_TASKS),
-    ModelDef("wav2letter", audio_text_models.get_wav2letter, FAST_TASKS),
-    ModelDef("deepspeech", audio_text_models.get_deepspeech, FAST_TASKS_NO_DOUBLE_BACK),
-    ModelDef("transfo", audio_text_models.get_transformer, FAST_TASKS),
+    ModelDef("resnet18", vision_models.get_resnet18, FAST_TASKS, []),
+    ModelDef("fcn_resnet", vision_models.get_fcn_resnet, FAST_TASKS, []),
+    ModelDef("ppl_simple_reg", ppl_models.get_simple_regression, ALL_TASKS, []),
+    ModelDef("ppl_robust_reg", ppl_models.get_robust_regression, ALL_TASKS, []),
+    # ModelDef("ppl_flakyness", ppl_models.get_test_flakyness, ALL_TASKS, []),
+    ModelDef("wav2letter", audio_text_models.get_wav2letter, FAST_TASKS, []),
+    ModelDef("deepspeech", audio_text_models.get_deepspeech, FAST_TASKS_NO_DOUBLE_BACK, DOUBLE_BACKWARD_TASKS),
+    ModelDef("transfo", audio_text_models.get_transformer, FAST_TASKS, []),
 ]
 
 def run_once(model, inp, task, extra=None):
@@ -86,27 +91,35 @@ def run_model(model_getter, args, task):
 
     return elapsed
 
-
-
 def main():
     parser = argparse.ArgumentParser("Main script to benchmark functional API of the autograd.")
-    parser.add_argument("--num_iters", type=int, default=10)
-    parser.add_argument("--model_filter", type=str, default="")
-    parser.add_argument("--task_filter", type=str, default="")
+    parser.add_argument("--num-iters", type=int, default=10)
+    parser.add_argument("--model-filter", type=str, default="")
+    parser.add_argument("--task-filter", type=str, default="")
     parser.add_argument("--gpu", type=int, default=-1, help="GPU to use, -1 for CPU")
     parser.add_argument("--run-slow-tasks", action="store_true", help="Run even the slow tasks")
+    parser.add_argument("--output", type=str, default="", help="Text file where to write the output")
     args = parser.parse_args()
 
-    for name, model_getter, reco_tasks in MODELS:
+    results = defaultdict(defaultdict)
+
+    for name, model_getter, reco_tasks, balcklist_tasks in MODELS:
         if not args.model_filter or name in args.model_filter:
-            tasks = TASKS if args.run_slow_tasks else reco_tasks
+            tasks = ALL_TASKS if args.run_slow_tasks else reco_tasks
             for task in tasks:
+                if task in balcklist_tasks:
+                    continue
                 if not args.task_filter or task in args.task_filter:
                     runtimes = run_model(model_getter, args, task)
 
                     runtimes = torch.tensor(runtimes)
                     mean, var = runtimes.mean(), runtimes.var()
+                    results[name][task] = (mean.item(), var.item())
                     print("Results for model {} on task {}: {}s (var: {})".format(name, task, mean, var))
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(get_str(results))
 
 if __name__ == "__main__":
     main()
