@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torchaudio import models
+import audio_models as models
 
 import math
 from collections import OrderedDict
