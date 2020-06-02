@@ -13,7 +13,7 @@ def get_wav2letter(device):
     N = 10
     input_frames = 700
     vocab_size = 28
-    model = models.wav2letter.Wav2Letter(num_classes=vocab_size)
+    model = models.Wav2Letter(num_classes=vocab_size)
     criterion = torch.nn.NLLLoss()
     model.to(device)
     params, names = make_functional(model)
