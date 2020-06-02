@@ -257,11 +257,11 @@ def get_deepspeech(device):
     # Commented are the original sizes in the code
     seq_length = 500 # 1343
     target_length = 10 # 50
-    labels = torch.rand(num_classes)
-    inputs = torch.rand(N, 1, spectrogram_size, seq_length)
-    inputs_sizes = torch.rand(N).mul(seq_length*0.1).add(seq_length*0.8) # Sequence length for each input
-    targets = torch.rand(N, target_length)
-    targets_sizes = torch.full((N,), target_length, dtype=torch.int)
+    labels = torch.rand(num_classes, device=device)
+    inputs = torch.rand(N, 1, spectrogram_size, seq_length, device=device)
+    inputs_sizes = torch.rand(N, device=device).mul(seq_length*0.1).add(seq_length*0.8) # Sequence length for each input
+    targets = torch.rand(N, target_length, device=device)
+    targets_sizes = torch.full((N,), target_length, dtype=torch.int, device=device)
 
     model = DeepSpeech(rnn_type=supported_rnns["lstm"], labels=labels, rnn_hidden_size=1024, nb_layers=5,
                        audio_conf=audio_conf, bidirectional=True)
@@ -381,7 +381,7 @@ def get_transformer(device):
     criterion = nn.NLLLoss()
     params, names = make_functional(model)
 
-    data = torch.rand(N, seq_length+1).mul(ntoken).long()
+    data = torch.rand(N, seq_length+1, device=device).mul(ntoken).long()
     inputs = data.narrow(1, 0, seq_length)
     targets = data.narrow(1, 1, seq_length)
 
