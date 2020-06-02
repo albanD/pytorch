@@ -1,5 +1,5 @@
 import torch
-from torchvision import models
+import torchvision_models as models
 
 from utils import make_functional, load_weights
 
@@ -25,7 +25,7 @@ def get_resnet18(device):
 def get_fcn_resnet(device):
     N = 10
     criterion = torch.nn.MSELoss()
-    model = models.segmentation.fcn_resnet50(pretrained=False, pretrained_backbone=False)
+    model = models.fcn_resnet50(pretrained=False, pretrained_backbone=False)
     model.to(device)
     params, names = make_functional(model)
 
