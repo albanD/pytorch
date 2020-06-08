@@ -34,6 +34,7 @@ ModelDef = namedtuple("ModelDef", ["name", "getter", "tasks", "blacklist"])
 MODELS = [
     ModelDef("resnet18", vision_models.get_resnet18, FAST_TASKS, []),
     ModelDef("fcn_resnet", vision_models.get_fcn_resnet, FAST_TASKS, []),
+    ModelDef("detr", vision_models.get_detr, FAST_TASKS, []),
     ModelDef("ppl_simple_reg", ppl_models.get_simple_regression, ALL_TASKS, []),
     ModelDef("ppl_robust_reg", ppl_models.get_robust_regression, ALL_TASKS, []),
     # ModelDef("ppl_flakyness", ppl_models.get_test_flakyness, ALL_TASKS, []),
