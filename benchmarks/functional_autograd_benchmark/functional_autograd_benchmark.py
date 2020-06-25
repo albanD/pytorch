@@ -29,7 +29,7 @@ ALL_TASKS = FAST_TASKS + [
 
 DOUBLE_BACKWARD_TASKS = ["jvp", "hvp", "vhp", "hessian"]
 
-ModelDef = namedtuple("ModelDef", ["name", "getter", "tasks", "blacklist"])
+ModelDef = namedtuple("ModelDef", ["name", "getter", "tasks", "unsupported"])
 
 MODELS = [
     ModelDef("resnet18", vision_models.get_resnet18, FAST_TASKS, []),
@@ -94,21 +94,24 @@ def run_model(model_getter, args, task):
 
 def main():
     parser = argparse.ArgumentParser("Main script to benchmark functional API of the autograd.")
+    parser.add_argument("--output", type=str, default="", help="Text file where to write the output")
     parser.add_argument("--num-iters", type=int, default=10)
+    parser.add_argument("--gpu", type=int, default=-2, help="GPU to use, -1 for CPU and -2 for auto-detect")
+    parser.add_argument("--run-slow-tasks", action="store_true", help="Run even the slow tasks")
     parser.add_argument("--model-filter", type=str, default="")
     parser.add_argument("--task-filter", type=str, default="")
-    parser.add_argument("--gpu", type=int, default=-1, help="GPU to use, -1 for CPU")
-    parser.add_argument("--run-slow-tasks", action="store_true", help="Run even the slow tasks")
-    parser.add_argument("--output", type=str, default="", help="Text file where to write the output")
     args = parser.parse_args()
 
     results = defaultdict(defaultdict)
 
-    for name, model_getter, reco_tasks, balcklist_tasks in MODELS:
+    if args.gpu == -2:
+        args.gpu = 0 if torch.cuda.is_available() else -1
+
+    for name, model_getter, reco_tasks, unsupported_tasks in MODELS:
         if not args.model_filter or name in args.model_filter:
             tasks = ALL_TASKS if args.run_slow_tasks else reco_tasks
             for task in tasks:
-                if task in balcklist_tasks:
+                if task in unsupported_tasks:
                     continue
                 if not args.task_filter or task in args.task_filter:
                     runtimes = run_model(model_getter, args, task)

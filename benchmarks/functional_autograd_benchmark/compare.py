@@ -35,6 +35,7 @@ def main():
 
     header = ("model", "task", "speedup", "mean (before)", "var (before)", "mean (after)", "var (after)")
     out = get_str(diff, header=header)
+
     print(out)
     if args.output:
         with open(args.output, "w") as f:
