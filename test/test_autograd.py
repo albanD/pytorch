@@ -2420,8 +2420,8 @@ class TestAutograd(TestCase):
         def run_test(upper, dims):
             root = torch.rand(*dims, requires_grad=True)
 
-            gradcheck(func, [root, upper])
-            gradgradcheck(func, [root, upper])
+            gradcheck(func, [root, upper], check_forward=False)
+            gradgradcheck(func, [root, upper], check_forward=False)
 
             root = random_symmetric_pd_matrix(dims[-1], *dims[:-2]).requires_grad_()
             chol = root.cholesky().sum().backward()
@@ -2444,8 +2444,8 @@ class TestAutograd(TestCase):
                     A = root.tril()
                 return torch.cholesky_solve(b, A, upper)
 
-            gradcheck(func, [root, b, upper])
-            gradgradcheck(func, [root, b, upper])
+            gradcheck(func, [root, b, upper], check_forward=False)
+            gradgradcheck(func, [root, b, upper], check_forward=False)
 
         for (a_size, b_size), upper in product([((3, 3), (3, 4)), ((3, 3), (3, 2)),
                                                 ((2, 3, 3), (2, 3, 4)), ((2, 3, 3), (2, 3, 2))],
@@ -4545,8 +4545,9 @@ def gradgradcheck_method_precision_override(test_name):
     return override
 
 def run_grad_and_gradgrad_checks(test_case, name, test_name, apply_method, output_variable,
-                                 input_variables, run_gradgradcheck=True):
-    test_case.assertTrue(gradcheck(apply_method, input_variables, eps=1e-6, atol=PRECISION))
+                                 input_variables, run_gradgradcheck=True, check_forward=True):
+    test_case.assertTrue(gradcheck(apply_method, input_variables, eps=1e-6, atol=PRECISION,
+                                   check_forward=check_forward))
     if name in EXCLUDE_GRADGRADCHECK or test_name in EXCLUDE_GRADGRADCHECK_BY_TEST_NAME:
         return
     gradgradcheck_precision_override = gradgradcheck_method_precision_override(test_name)
@@ -4554,9 +4555,10 @@ def run_grad_and_gradgrad_checks(test_case, name, test_name, apply_method, outpu
         atol = gradgradcheck_precision_override['atol']
         rtol = gradgradcheck_precision_override['rtol']
         test_case.assertTrue(gradgradcheck(apply_method, input_variables, None, atol=atol, rtol=rtol,
-                                           gen_non_contig_grad_outputs=True))
+                                           gen_non_contig_grad_outputs=True, check_forward=check_forward))
     else:
-        test_case.assertTrue(gradgradcheck(apply_method, input_variables, gen_non_contig_grad_outputs=True))
+        test_case.assertTrue(gradgradcheck(apply_method, input_variables, gen_non_contig_grad_outputs=True,
+                                           check_forward=check_forward))
 
 
 def run_functional_checks(test_case, test_name, name, apply_fn, run_grad_checks,
@@ -4591,6 +4593,9 @@ complex_list = ['t', 'view', 'reshape', 'reshape_as', 'view_as', 'zero_', 'clone
                 '__rmul__', '__rdiv__', 'sum', 'transpose', 'round', 'add', 'roll',
                 '__radd__', 'repeat', 'expand', 'mul', 'tanh', 'flip', 'fliplr', 'flipud',
                 'rot90'] + separate_complex_tests
+
+# This should be in common_methods_invocations list but adding arguments there is too complex
+fw_grad_disallow_list = ['atan2', 'cholesky']
 
 def add_test(
         name,
@@ -4665,7 +4670,8 @@ def add_test(
 
                         if not is_inplace and name not in EXCLUDE_GRADCHECK:
                             run_grad_and_gradgrad_checks(self, name, test_name, fn,
-                                                         output_variable, (self_variable,) + args_variable)
+                                                         output_variable, (self_variable,) + args_variable,
+                                                         check_forward=name not in fw_grad_disallow_list)
 
                     # functional interface tests
                     if hasattr(torch, name) and name not in EXCLUDE_FUNCTIONAL:

@@ -3022,6 +3022,66 @@ Tensor addmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, con
   return out_fw_grad;
 }
 
+Tensor addbmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, const Tensor& mat2_fw_grad,
+        Scalar beta, Scalar alpha, const Tensor& mat1, const Tensor& mat2) {
+
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = maybe_multiply(self_fw_grad, beta);
+  }
+
+  if (mat1_fw_grad.defined()) {
+    auto val = maybe_multiply(mat1_fw_grad.bmm(mat2).sum(0), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (mat2_fw_grad.defined()) {
+    auto val = maybe_multiply(mat1.bmm(mat2_fw_grad).sum(0), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor baddbmm_forward(const Tensor& self_fw_grad, const Tensor& batch1_fw_grad, const Tensor& batch2_fw_grad,
+        Scalar beta, Scalar alpha, const Tensor& batch1, const Tensor& batch2) {
+
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = maybe_multiply(self_fw_grad, beta);
+  }
+
+  if (batch1_fw_grad.defined()) {
+    auto val = maybe_multiply(batch1_fw_grad.bmm(batch2), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (batch2_fw_grad.defined()) {
+    auto val = maybe_multiply(batch1.bmm(batch2_fw_grad), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
 Tensor bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
         const Tensor& self, const Tensor& mat2) {
 
@@ -3034,6 +3094,28 @@ Tensor bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
 
   if (mat2_fw_grad.defined()) {
     auto val = self.bmm(mat2_fw_grad);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor _bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
+        const Tensor& self, const Tensor& mat2, bool deterministic) {
+
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    auto val = at::_bmm(self_fw_grad, mat2, deterministic);
+    out_fw_grad = val;
+  }
+
+  if (mat2_fw_grad.defined()) {
+    auto val = at::_bmm(self, mat2_fw_grad, deterministic);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {
@@ -3214,6 +3296,123 @@ Tensor max_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& in
 
   return out_fw_grad;
 }
+
+Tensor addcop_forward(const Tensor& self_fw_grad, const Tensor& tensor1_fw_grad, const Tensor& tensor2_fw_grad,
+                      const Tensor& tensor1, const Tensor& tensor2, const Scalar& value, bool is_div) {
+  Tensor out_fw_grad;
+
+  if (tensor1_fw_grad.defined()) {
+    if (is_div) {
+      out_fw_grad = maybe_multiply(tensor1_fw_grad / tensor2, value);
+    } else {
+      out_fw_grad = maybe_multiply(tensor1_fw_grad * tensor2, value);
+    }
+  }
+
+  if (tensor2_fw_grad.defined()) {
+    Tensor val;
+    if (is_div) {
+      val = -1. * tensor2_fw_grad * (tensor1 / tensor2) / tensor2;
+    } else {
+      val = tensor1 * tensor2_fw_grad;
+    }
+
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + maybe_multiply(val, value);
+    } else {
+      out_fw_grad = maybe_multiply(val, value);
+    }
+  }
+
+  if (self_fw_grad.defined()) {
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + self_fw_grad;
+    } else {
+      out_fw_grad = self_fw_grad;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor addmv_forward(const Tensor& self_fw_grad, const Tensor& mat_fw_grad, const Tensor& vec_fw_grad,
+                     const Scalar& beta, const Scalar& alpha, const Tensor& mat, const Tensor& vec) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = maybe_multiply(self_fw_grad, beta);
+  }
+
+  if (mat_fw_grad.defined()) {
+    auto val = maybe_multiply(mat_fw_grad.mv(vec), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (vec_fw_grad.defined()) {
+    auto val = maybe_multiply(mat.mv(vec_fw_grad), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor addr_forward(const Tensor& self_fw_grad, const Tensor& vec1_fw_grad, const Tensor& vec2_fw_grad,
+                    const Scalar& beta, const Scalar& alpha, const Tensor& vec1, const Tensor& vec2) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = maybe_multiply(self_fw_grad, beta);
+  }
+
+  if (vec1_fw_grad.defined()) {
+    auto val = maybe_multiply(vec1_fw_grad.ger(vec2), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (vec2_fw_grad.defined()) {
+    auto val = maybe_multiply(vec1.ger(vec2_fw_grad), alpha);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c10::optional<long int> dim,
+                     const Tensor& self, const Tensor& other) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = at::cross(self_fw_grad, other, dim.has_value() ? *dim : -1);
+  }
+
+  if (other_fw_grad.defined()) {
+    auto val = at::cross(self, other_fw_grad, dim.has_value() ? *dim : -1);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
 
 } // namespace details
 } // namespace generated

@@ -147,7 +147,10 @@ def process_definition(defn, declarations_by_signature, declarations_by_schema):
                                "otherwise, there is a likely error in your derivatives "
                                "declaration.".format(defn_name))
 
-    def find_required_inputs_fw_grads(formula):
+    def find_required_inputs_fw_grads(formula, args_with_derivatives):
+        # Special case for the not implemented function to make it depend on any input
+        if "not_implemented(" in formula:
+            return tuple(arg['name'] for arg in args_with_derivatives)
         FW_GRAD_REGEX = r'(\w+).fw_grad'
         return re.findall(FW_GRAD_REGEX, formula)
 
@@ -235,13 +238,7 @@ def process_definition(defn, declarations_by_signature, declarations_by_schema):
         for raw_names in sorted(defn.keys()):
             formula = defn[raw_names]
             names = split_names(raw_names)
-            if is_fw_def(names):
-                derivative = {"out_arg": names[0],
-                              "out_type": declaration['returns'][0]['dynamic_type'],
-                              "formula": formula,
-                              "required_inputs": find_required_inputs_fw_grads(formula)}
-                fw_derivatives.append(derivative)
-            else:
+            if not is_fw_def(names):
                 derivative = create_derivative(declaration['arguments'], declaration['returns'],
                                                declaration['name'], formula, names)
                 if formula.lower().strip() == 'non_differentiable':
@@ -251,8 +248,19 @@ def process_definition(defn, declarations_by_signature, declarations_by_schema):
                     non_differentiable_arg_names += derivative['var_names']
                 else:
                     derivatives.append(derivative)
+
         args_with_derivatives = list(filter(lambda x: x['name'] not in non_differentiable_arg_names,
                                             args_with_derivatives))
+
+        for raw_names in sorted(defn.keys()):
+            formula = defn[raw_names]
+            names = split_names(raw_names)
+            if is_fw_def(names):
+                derivative = {"out_arg": names[0],
+                              "out_type": declaration['returns'][0]['dynamic_type'],
+                              "formula": formula,
+                              "required_inputs": find_required_inputs_fw_grads(formula, args_with_derivatives)}
+                fw_derivatives.append(derivative)
 
         # Test to see if the use of 'grads' makes sense.
         check_grad_usage(defn_name, declaration, derivatives)

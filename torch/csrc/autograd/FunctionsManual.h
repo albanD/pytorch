@@ -223,8 +223,14 @@ Tensor native_layer_norm_forward(const Tensor& input_fw_grad, const Tensor& inpu
 Tensor max_pool2d_with_indices_forward(const Tensor& self_fw_grad, const Tensor& indices);
 Tensor addmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, const Tensor& mat2_fw_grad,
         Scalar beta, Scalar alpha, const Tensor& mat1, const Tensor& mat2);
+Tensor addbmm_forward(const Tensor& self_fw_grad, const Tensor& batch1_fw_grad, const Tensor& batch2_fw_grad,
+        Scalar beta, Scalar alpha, const Tensor& batch1, const Tensor& batch2);
+Tensor baddbmm_forward(const Tensor& self_fw_grad, const Tensor& batch1_fw_grad, const Tensor& batch2_fw_grad,
+        Scalar beta, Scalar alpha, const Tensor& batch1, const Tensor& batch2);
 Tensor bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
         const Tensor& self, const Tensor& mat2);
+Tensor _bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
+        const Tensor& self, const Tensor& mat2, bool deterministic);
 Tensor _log_softmax_foward(const Tensor& self_fw_grad, const Tensor& result, int dim);
 Tensor stack_forward(at::TensorList tensors, int64_t dim);
 Tensor cat_forward(at::TensorList tensors, int64_t dim);
@@ -239,9 +245,13 @@ Tensor index_put_forward(const at::Tensor& self_fw_grad_, const at::Tensor& valu
 Tensor min_max_other_forward(const at::Tensor& self_fw_grad, const at::Tensor& other_fw_grad, const at::Tensor& self,
         const at::Tensor& other, bool is_min);
 Tensor max_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim);
-
-
-
+Tensor addcop_forward(const Tensor& self_fw_grad, const Tensor& tensor1_fw_grad, const Tensor& tensor2_fw_grad,
+                      const Tensor& tensor1, const Tensor& tensor2, const Scalar& value, bool is_div);
+Tensor addmv_forward(const Tensor& self_fw_grad, const Tensor& mat_fw_grad, const Tensor& vec_fw_grad,
+                     const Scalar& beta, const Scalar& alpha, const Tensor& mat, const Tensor& vec);
+Tensor addr_forward(const Tensor& self_fw_grad, const Tensor& vec1_fw_grad, const Tensor& vec2_fw_grad,
+                    const Scalar& beta, const Scalar& alpha, const Tensor& vec1, const Tensor& vec2);
+Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c10::optional<long int> dim, const Tensor& self, const Tensor& other);
 
 } // namespace details
 } // namespace generated
