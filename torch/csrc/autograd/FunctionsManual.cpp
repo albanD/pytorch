@@ -3413,7 +3413,6 @@ Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c1
   return out_fw_grad;
 }
 
-
 } // namespace details
 } // namespace generated
 } // namespace autograd

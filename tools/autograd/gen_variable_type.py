@@ -1194,6 +1194,17 @@ def emit_body(declaration):
         content = []
         for derivative in fw_derivatives:
             res = derivative['out_arg']
+            # Handle outputs that are renamed
+            if res not in [arg['name'] for arg in returns]:
+                found = False
+                for arg in returns:
+                    if res == arg['field_name']:
+                        res = arg['name']
+                        found = True
+                        break
+                if not found:
+                    raise RuntimeError("Output name {} for fw def of {} is invalid.".format(res, name))
+
 
             if_stmt = " or ".join([FW_DERIVATIVE_CHECK_TEMPLATE.substitute(req_inp=inp['name'])
                                    for inp in differentiable_inputs if inp['name'] in derivative['required_inputs']])

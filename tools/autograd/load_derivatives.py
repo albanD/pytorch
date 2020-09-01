@@ -169,13 +169,15 @@ def process_definition(defn, declarations_by_signature, declarations_by_schema):
 
         # Used to differentiate forward and backward formulas
         arg_names = [arg['name'] for arg in declaration['arguments']]
+        tensor_arg_names = [arg['name'] for arg in declaration['arguments']
+                            if arg['simple_type'] in ['Tensor', 'TensorList', 'Tensor?']]
 
         def is_fw_def(names):
             if len(names) > 1:
                 # Forward definition are always for a single output at a time
                 return False
             name = names[0]
-            if name not in arg_names:
+            if name not in tensor_arg_names:
                 return True
             else:
                 return False
