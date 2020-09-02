@@ -590,7 +590,7 @@
 - name: ger(Tensor self, Tensor vec2) -> Tensor
   self: grad.mv(vec2)
   vec2: grad.t().mv(self)
-  result: "self_fw_grad.defined() ? (vec2_fw_grad.defined() ? at::ger(self_fw_grad, vec2) + at::ger(self, vec2_fw_grad) : at::ger(self_fw_grad, vec2)) : (vec2_fw_grad.defined() ? at::ger(self, vec2_fw_grad) : Tensor())"
+  result: FW_GRAD_ADD_DEF_EXPR(self_fw_grad, vec2_fw_grad, at::ger(self_fw_grad, vec2), at::ger(self, vec2_fw_grad))
 
 - name: indices(Tensor(a) self) -> Tensor(a)
   output_differentiability: [False]
@@ -635,7 +635,7 @@
 - name: hypot(Tensor self, Tensor other) -> Tensor
   self: grad * self / result
   other: grad * other / result
-  result: "self_fw_grad.defined() ? (other_fw_grad.defined() ? self_fw_grad * self / result + other_fw_grad * other / result : self_fw_grad * self / result) : (other_fw_grad.defined() ? other_fw_grad * other / result : Tensor())"
+  result: FW_GRAD_ADD_DEF_EXPR(self_fw_grad, other_fw_grad, self_fw_grad * self / result, other_fw_grad * other / result)
 
 - name: index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
   self: index_backward(zeros_like(self), indices, grad)
@@ -651,54 +651,64 @@
   self: grad.clone().index_fill_(dim, index, 0)
   source: grad.index_select(dim, index).expand_as(source)
   index: non_differentiable
-  result: at::index_copy_(self_fw_grad, dim, index, source_fw_grad)
+  result: "at::index_copy_(self_fw_grad.defined() ? self_fw_grad : at::zeros_like(self), dim, index, source_fw_grad.defined() ? source_fw_grad : 0)"
 
 - name: index_fill_.int_Scalar(Tensor(a!) self, int dim, Tensor index, Scalar value) -> Tensor(a!)
   self: grad.clone().index_fill_(dim, index, 0)
   index: non_differentiable
+  result: at::index_fill_(self_fw_grad, dim, index, 0)
 
 - name: index_fill_.int_Tensor(Tensor(a!) self, int dim, Tensor index, Tensor value) -> Tensor(a!)
   self: grad.clone().index_fill_(dim, index, 0)
   value: grad.index_select(dim, index).sum()
   index: non_differentiable
+  result: at::index_fill_(self_fw_grad, dim, index, 0)
 
 - name: index_put_(Tensor(a!) self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor(a!)
   self: "accumulate ? grad : grad.clone().index_put_(indices, zeros_like(values), false)"
   values: grad.index(indices)
-  result: index_put_forward(self_fw_grad, values_fw_grad, self, indices, values, accumulate)
+  result: index_put_forward(self_fw_grad, values_fw_grad, self, indices, values, accumulate, /* unsafe */ false)
 
 - name: _index_put_impl_(Tensor(a!) self, Tensor?[] indices, Tensor values, bool accumulate=False, bool unsafe=False) -> Tensor(a!)
   self: "accumulate ? grad : grad.clone().index_put_(indices, zeros_like(values), false)"
   values: grad.index(indices)
+  result: index_put_forward(self_fw_grad, values_fw_grad, self, indices, values, accumulate, unsafe)
 
 - name: index_select(Tensor self, int dim, Tensor index) -> Tensor
   self: at::zeros(self.sizes(), grad.options()).index_add_(dim, index, grad)
   index: non_differentiable
+  result: linear
 
 - name: inverse(Tensor self) -> Tensor
   self: -at::matmul(result.transpose(-2, -1), at::matmul(grad, result.transpose(-2, -1)))
+  result: -at::matmul(self.transpose(-2, -1), at::matmul(self_fw_grad, self.transpose(-2, -1)))
 
 - name: isnan(Tensor self) -> Tensor
   self: non_differentiable
 
 - name: kthvalue(Tensor self, int k, int dim=-1, bool keepdim=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), keepdim)
+  values: kthvalue_forward(self_fw_grad, dim, keepdim, indices)
 
 - name: le_.Scalar(Tensor(a!) self, Scalar other) -> Tensor(a!)
   self: zeros_like(self)
+  result: not_implemented("le_ forward mode")
 
 - name: le_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
   self: zeros_like(self)
   other: zeros_like(other)
+  result: not_implemented("le_ forward mode")
 
 - name: lerp.Scalar(Tensor self, Tensor end, Scalar weight) -> Tensor
   self: grad * (1 - weight.toDouble())
   end: grad * weight
+  result: lerp_forward<c10::Scalar>(self_fw_grad, end_fw_grad, Tensor(), weight, self, end)
 
 - name: lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor
   self: grad * (1 - weight)
   end: grad * weight
   weight: grad * (end - self)
+  result: lerp_forward<Tensor>(self_fw_grad, end_fw_grad, weight_fw_grad, weight, self, end)
 
 - name: lgamma(Tensor self) -> Tensor
   self: grad * digamma(self)
@@ -731,50 +741,64 @@
 - name: logaddexp(Tensor self, Tensor other) -> Tensor
   self: grad / (1 + exp(other - self))
   other: grad / (1 + exp(self - other))
+  result: FW_GRAD_ADD_DEF_EXPR(self_fw_grad, other_fw_grad, self_fw_grad / (1 + exp(other - self)), other_fw_grad / (1 + exp(self - other)))
 
 - name: logaddexp2(Tensor self, Tensor other) -> Tensor
   self: grad / (1 + pow(2, other - self))
   other: grad / (1 + pow(2, self - other))
+  result: FW_GRAD_ADD_DEF_EXPR(self_fw_grad, other_fw_grad, self_fw_grad / (1 + pow(2, other - self)), other_fw_grad / (1 + pow(2, self - other)))
 
 - name: logdet(Tensor self) -> Tensor
   self: logdet_backward(grad, self, result)
+  result: not_implemented("logdet forward mode")
 
 - name: log_normal_(Tensor(a!) self, float mean=1, float std=2, *, Generator? generator=None) -> Tensor(a!)
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
   self: logsumexp_backward(grad, self, result, dim, keepdim)
+  result: not_implemented("logsumexp forward mode")
 
 - name: lstsq(Tensor self, Tensor A) -> (Tensor solution, Tensor QR)
   self: not_implemented("lstsq")
   A: not_implemented("lstsq")
+  solution: not_implemented("lstsq forward mode")
+  QR: not_implemented("lstsq forward mode")
 
 - name: lt_.Scalar(Tensor(a!) self, Scalar other) -> Tensor(a!)
   self: zeros_like(self)
+  result: not_implemented("lt_ forward mode")
 
 - name: lt_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
   self: zeros_like(self)
   other: zeros_like(other)
+  result: not_implemented("lt_ forward mode")
 
 - name: _lu_with_info(Tensor self, bool pivot=True, bool check_errors=True) -> (Tensor, Tensor, Tensor)
   self: not_implemented("lu_with_info")
+  result0: not_implemented("_lu_with_info forward mode")
 
 - name: lu_solve(Tensor self, Tensor LU_data, Tensor LU_pivots) -> Tensor
   self: not_implemented("lu_solve")
+  result: not_implemented("lu_solve forward mode")
 
 - name: masked_fill_.Scalar(Tensor(a!) self, Tensor mask, Scalar value) -> Tensor(a!)
   self: grad.clone().masked_fill_(mask, 0)
   mask: non_differentiable
+  result: element_wise
 
 - name: masked_fill_.Tensor(Tensor(a!) self, Tensor mask, Tensor value) -> Tensor(a!)
   self: grad.clone().masked_fill_(mask, 0)
   value: at::where(mask, grad, zeros_like(grad, at::MemoryFormat::Preserve)).sum()
   mask: non_differentiable
+  result: "at::masked_fill_(self_fw_grad.defined() ? self_fw_grad : at::zeros_like(self), mask, value_fw_grad.defined() ? value_fw_grad : 0)"
 
 - name: masked_scatter_(Tensor(a!) self, Tensor mask, Tensor source) -> Tensor(a!)
   self: grad.clone().masked_fill_(mask, 0)
   source: masked_scatter_backward(grad, mask, source.sizes())
   mask: non_differentiable
+  result: "at::masked_scatter_(self_fw_grad.defined() ? self_fw_grad : at::zeros_like(self), mask, source_fw_grad.defined() ? source_fw_grad : 0)"
 
 - name: masked_select(Tensor self, Tensor mask) -> Tensor
 # normally broadcasting is handled implicitly, but here, because we call an inplace
@@ -782,17 +806,19 @@
 # we need to explicitly broadcast.
   self: zeros_like(self.expand(at::infer_size(self.sizes(), mask.sizes())), at::MemoryFormat::Preserve).masked_scatter_(mask, grad)
   mask: non_differentiable
+  result: linear
 
 - name: matrix_exp(Tensor self) -> Tensor
   self: matrix_exp_backward(self, grad)
+  result: not_implemented("matrix_exp forward mode")
 
 - name: max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), keepdim)
-  values: max_dim_forward(self_fw_grad, dim, indices, keepdim)
+  values: min_max_median_dim_forward(self_fw_grad, dim, indices, keepdim)
 
 - name: max(Tensor self) -> Tensor
   self: evenly_distribute_backward(grad, self, result)
-  result: max_forward(self_fw_grad, self, result)
+  result: evenly_read_forward(self_fw_grad, self, result)
 
 - name: max.other(Tensor self, Tensor other) -> Tensor
   self: grad.clone().masked_fill_(self <= other, 0)
@@ -809,6 +835,7 @@
 
 - name: median(Tensor self) -> Tensor
   self: evenly_distribute_backward(grad, self, result)
+  result: evenly_read_forward(self_fw_grad, self, result)
 
 # This is in theory incorrect in the following case:
 #   sorted list: [..., a, b, b, ..., b, b, c, ...] with median = b and the value
@@ -826,12 +853,15 @@
 # subgradient on one side.
 - name: median.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), keepdim)
+  values: min_max_median_dim_forward(self_fw_grad, dim, indices, keepdim)
 
 - name: min.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), keepdim)
+  values: min_max_median_dim_forward(self_fw_grad, dim, indices, keepdim)
 
 - name: min(Tensor self) -> Tensor
   self: evenly_distribute_backward(grad, self, result)
+  result: evenly_read_forward(self_fw_grad, self, result)
 
 - name: min.other(Tensor self, Tensor other) -> Tensor
   self: grad.clone().masked_fill_(self >= other, 0)
@@ -845,6 +875,7 @@
 
 - name: mode(Tensor self, int dim=-1, bool keepdim=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), keepdim)
+  values: min_max_median_dim_forward(self_fw_grad, dim, indices, keepdim)
 
 - name: mul.Tensor(Tensor self, Tensor other) -> Tensor
   self: grad * other
@@ -858,9 +889,11 @@
 - name: mv(Tensor self, Tensor vec) -> Tensor
   self: grad.ger(vec)
   vec: self.t().mv(grad)
+  result: FW_GRAD_ADD_DEF_EXPR(self_fw_grad, vec_fw_grad, at::mv(self_fw_grad, vec), at::mv(self, vec_fw_grad))
 
 - name: mvlgamma(Tensor self, int p) -> Tensor
   self: mvlgamma_backward(grad, self, p)
+  result: element_wise
 
 - name: native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)
   input, weight, bias: "grad.defined() ? native_batch_norm_backward(grad, input, weight, running_mean, running_var, result1, result2, training, eps, grad_input_mask) : std::tuple<Tensor, Tensor, Tensor>()"
@@ -870,6 +903,7 @@
   input, weight, grad_out: batchnorm_double_backward(input, weight, grads[0], grads[1], grads[2], grad_out, running_mean, running_var, train, eps, save_mean, save_invstd, grad_input_mask)
   save_mean: not_implemented("native_batch_norm_backward save_mean")
   save_invstd: not_implemented("native_batch_norm_backward save_invstd")
+  result0: not_implemented("native_batch_norm_backward forward mode")
 
 - name: native_layer_norm(Tensor input, Tensor? weight, Tensor? bias, int M, int N, float eps) -> (Tensor, Tensor, Tensor)
   input, weight, bias: "GradMode::is_enabled() || grads[1].defined() || grads[2].defined() ? infinitely_differentiable_native_layer_norm_backward(grads[0], grads[1], grads[2], input, result1, result2, weight, M, N, eps, grad_input_mask) : (grads[0].defined() ? native_layer_norm_backward(grads[0].is_contiguous() ? grads[0] : grads[0].contiguous(), input, result1, result2, weight, M, N, grad_input_mask) : std::tuple<Tensor, Tensor, Tensor>())"
@@ -877,13 +911,16 @@
 
 - name: native_group_norm(Tensor input, Tensor? weight, Tensor? bias, int N, int C, int HxW, int group, float eps) -> (Tensor, Tensor, Tensor)
   input, weight, bias: "GradMode::is_enabled() || grads[1].defined() || grads[2].defined() ? infinitely_differentiable_native_group_norm_backward(grads[0], grads[1], grads[2], input, result1, result2, weight, N, C, HxW, group, eps, grad_input_mask) : (grads[0].defined() ? native_group_norm_backward(grads[0].is_contiguous() ? grads[0] : grads[0].contiguous(), input.is_contiguous() ? input : input.contiguous(), result1, result2, weight, N, C, HxW, group, grad_input_mask) : std::tuple<Tensor, Tensor, Tensor>())"
+  result0: not_implemented("native_group_norm forward mode")
 
 - name: ne_.Scalar(Tensor(a!) self, Scalar other) -> Tensor(a!)
   self: zeros_like(self)
+  result: not_implemented("ne_ forward mode")
 
 - name: ne_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
   self: zeros_like(self)
   other: zeros_like(other)
+  result: not_implemented("ne_ forward mode")
 
 - name: neg(Tensor self) -> Tensor
   self: grad.neg()
@@ -892,6 +929,7 @@
 - name: nextafter(Tensor self, Tensor other) -> Tensor
   self: not_implemented("nextafter")
   other: not_implemented("nextafter")
+  result: not_implemented("nextafter forward mode")
 
 - name: norm.Scalar(Tensor self, Scalar p=2) -> Tensor
   self: norm_backward(grad, self, p, result)

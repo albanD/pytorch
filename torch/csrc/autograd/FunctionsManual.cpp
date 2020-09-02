@@ -724,7 +724,7 @@ Tensor _fused_dropout_backward(Tensor grad, Tensor mask, double p1m) {
   }
 }
 
-Tensor evenly_distribute_backward(Tensor grad, const Tensor & input, const Tensor & value) {
+Tensor evenly_distribute_backward(const Tensor& grad, const Tensor & input, const Tensor & value) {
   auto mask = (input == value);
   auto count = mask.sum();
   auto grad_input = grad / count;
@@ -733,6 +733,13 @@ Tensor evenly_distribute_backward(Tensor grad, const Tensor & input, const Tenso
   } else {
     return at::zeros_like(input).masked_fill_(mask, grad_input);
   }
+}
+
+Tensor evenly_read_forward(const Tensor& fw_grad, const Tensor & input, const Tensor & value) {
+  auto mask = (input == value);
+  auto count = mask.sum();
+  auto grad_output = fw_grad / count;
+  return at::sum(mask * grad_output);
 }
 
 Tensor index_select_backward(Tensor grad, int64_t dim, Tensor indices, IntArrayRef sizes, bool keepdim) {
@@ -3243,7 +3250,7 @@ Tensor binary_cross_entropy_with_logits_forward(const at::Tensor& self_fw_grad, 
 }
 
 Tensor index_put_forward(const at::Tensor& self_fw_grad_, const at::Tensor& values_fw_grad_, const at::Tensor& self,
-        TensorList indices, const at::Tensor& values, bool accumulate) {
+        TensorList indices, const at::Tensor& values, bool accumulate, bool unsafe) {
   Tensor self_fw_grad = self_fw_grad_;
   Tensor values_fw_grad = values_fw_grad_;
 
@@ -3255,7 +3262,7 @@ Tensor index_put_forward(const at::Tensor& self_fw_grad_, const at::Tensor& valu
     values_fw_grad = at::zeros_like(values);
   }
 
-  return at::index_put_(self_fw_grad, indices, values_fw_grad, accumulate);
+  return at::_index_put_impl_(self_fw_grad, indices, values_fw_grad, accumulate, unsafe);
 }
 
 Tensor min_max_other_forward(const at::Tensor& self_fw_grad, const at::Tensor& other_fw_grad, const at::Tensor& self,
@@ -3284,7 +3291,7 @@ Tensor min_max_other_forward(const at::Tensor& self_fw_grad, const at::Tensor& o
   return out_fw_grad;
 }
 
-Tensor max_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim) {
+Tensor min_max_median_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim) {
   auto full_indices = indices;
   if (!keepdim) {
     full_indices = indices.unsqueeze(dim);
@@ -3403,6 +3410,51 @@ Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c1
 
   if (other_fw_grad.defined()) {
     auto val = at::cross(self, other_fw_grad, dim.has_value() ? *dim : -1);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices) {
+
+  auto full_indices = indices;
+  if (!keepdim) {
+    full_indices = full_indices.unsqueeze(dim);
+  }
+
+  auto out_fw_grad = at::gather(self_fw_grad, dim, indices);
+
+  if (!keepdim) {
+    out_fw_grad = out_fw_grad.squeeze(dim);
+  }
+
+  return out_fw_grad;
+}
+
+template<typename T>
+Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const T& weight,
+                    const Tensor& self, const Tensor& end) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    if (end_fw_grad.defined()) {
+      out_fw_grad = at::lerp(self_fw_grad, end_fw_grad, weight);
+    } else {
+      out_fw_grad = (1 - weight) * self_fw_grad;
+    }
+  } else {
+    if (end_fw_grad.defined()) {
+      out_fw_grad = weight * end_fw_grad;
+    }
+  }
+
+  if (weight_fw_grad.defined()) {
+    auto val = weight_fw_grad * (end - self);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {

@@ -1198,7 +1198,7 @@ def emit_body(declaration):
             if res not in [arg['name'] for arg in returns]:
                 found = False
                 for arg in returns:
-                    if res == arg['field_name']:
+                    if 'field_name' in arg and res == arg['field_name']:
                         res = arg['name']
                         found = True
                         break
@@ -1211,7 +1211,10 @@ def emit_body(declaration):
             if not if_stmt:
                 # Handle functions like stack
                 # For these, we don't unpack anything and always call the user function
-                assert len(differentiable_inputs) == 1
+                if len(differentiable_inputs) != 1:
+                    print("Required inputs: ", derivative['required_inputs'])
+                    print("Differentiable inputs", differentiable_inputs)
+                    raise RuntimeError("No required differentiable inputs for {}.".format(name))
                 assert differentiable_inputs[0]['dynamic_type'] == 'TensorList'
                 if_stmt = "true"
             fw_grad_defined = ""

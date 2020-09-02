@@ -79,6 +79,7 @@ at::Tensor sum_tensorlist(at::TensorList tl);
 at::Tensor repeat_backward(at::Tensor grad, int64_t input_dims, at::IntArrayRef repeats);
 at::Tensor _fused_dropout_backward(at::Tensor grad, at::Tensor mask, double p1m);
 at::Tensor evenly_distribute_backward(at::Tensor grad, const at::Tensor & input, const at::Tensor & value);
+at::Tensor evenly_read_forward(const Tensor& fw_grad, const Tensor & input, const Tensor & value);
 at::Tensor index_select_backward(at::Tensor grad, int64_t dim, at::Tensor indices, at::IntArrayRef sizes, bool keepdim);
 at::Tensor slice_backward(at::Tensor grad, at::IntArrayRef input_sizes, int64_t dim, int64_t start, int64_t end, int64_t step);
 at::Tensor select_backward(at::Tensor grad, at::IntArrayRef input_sizes, int64_t dim, int64_t index);
@@ -234,14 +235,14 @@ Tensor _bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
 Tensor _log_softmax_foward(const Tensor& self_fw_grad, const Tensor& result, int dim);
 Tensor stack_forward(at::TensorList tensors, int64_t dim);
 Tensor cat_forward(at::TensorList tensors, int64_t dim);
-Tensor max_forward(const Tensor& self_fw_grad, const Tensor& self, const Tensor& result);
+Tensor min_max_median_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim);
 Tensor index_add_forward(const Tensor& self_fw_grad, const Tensor& source_fw_grad, int dim, const Tensor& index, const Tensor& self);
 at::Tensor apply_loss_reduction(const at::Tensor& unreduced, int64_t reduction);
 Tensor binary_cross_entropy_with_logits_forward(const at::Tensor& self_fw_grad, const at::Tensor& target_fw_grad,
         const at::Tensor& self, const at::Tensor& target, const c10::optional<at::Tensor> weight,
         const c10::optional<at::Tensor> pos_weight, int64_t reduction);
 Tensor index_put_forward(const at::Tensor& self_fw_grad_, const at::Tensor& values_fw_grad_, const at::Tensor& self,
-        at::TensorList indices, const at::Tensor& values, bool accumulate);
+        at::TensorList indices, const at::Tensor& values, bool accumulate, bool unsafe);
 Tensor min_max_other_forward(const at::Tensor& self_fw_grad, const at::Tensor& other_fw_grad, const at::Tensor& self,
         const at::Tensor& other, bool is_min);
 Tensor max_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim);
@@ -252,6 +253,13 @@ Tensor addmv_forward(const Tensor& self_fw_grad, const Tensor& mat_fw_grad, cons
 Tensor addr_forward(const Tensor& self_fw_grad, const Tensor& vec1_fw_grad, const Tensor& vec2_fw_grad,
                     const Scalar& beta, const Scalar& alpha, const Tensor& vec1, const Tensor& vec2);
 Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c10::optional<long int> dim, const Tensor& self, const Tensor& other);
+Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices);
+template<typename T>
+Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const T& weight,
+                    const Tensor& self, const Tensor& end);
+
+#define FW_GRAD_DEF_EXPR(t1, t2, expr1, expr2, expr3, expr4) t1.defined() ? (t2.defined() ? expr1 : expr2) : (t2.defined() ? expr3 : expr4)
+#define FW_GRAD_ADD_DEF_EXPR(t1, t2, expr1, expr2) FW_GRAD_DEF_EXPR(t1, t2, expr1 + expr2, expr1, expr2, Tensor())
 
 } // namespace details
 } // namespace generated
