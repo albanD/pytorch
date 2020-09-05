@@ -254,9 +254,11 @@ Tensor addr_forward(const Tensor& self_fw_grad, const Tensor& vec1_fw_grad, cons
                     const Scalar& beta, const Scalar& alpha, const Tensor& vec1, const Tensor& vec2);
 Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c10::optional<long int> dim, const Tensor& self, const Tensor& other);
 Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices);
-template<typename T>
-Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const T& weight,
+Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const Tensor& weight,
                     const Tensor& self, const Tensor& end);
+at::Tensor norm_forward(const at::Tensor & self_fw_grad, const at::Tensor & self, const optional<at::Scalar> & p_, const at::Tensor & norm);
+at::Tensor norm_forward_dim(at::Tensor self_fw_grad, const at::Tensor & self, const optional<at::Scalar> & p_, at::Tensor norm, at::IntArrayRef dim, bool keepdim);
+
 
 #define FW_GRAD_DEF_EXPR(t1, t2, expr1, expr2, expr3, expr4) t1.defined() ? (t2.defined() ? expr1 : expr2) : (t2.defined() ? expr3 : expr4)
 #define FW_GRAD_ADD_DEF_EXPR(t1, t2, expr1, expr2) FW_GRAD_DEF_EXPR(t1, t2, expr1 + expr2, expr1, expr2, Tensor())

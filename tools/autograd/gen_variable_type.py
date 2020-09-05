@@ -1215,7 +1215,9 @@ def emit_body(declaration):
                     print("Required inputs: ", derivative['required_inputs'])
                     print("Differentiable inputs", differentiable_inputs)
                     raise RuntimeError("No required differentiable inputs for {}.".format(name))
-                assert differentiable_inputs[0]['dynamic_type'] == 'TensorList'
+                if differentiable_inputs[0]['dynamic_type'] != 'TensorList':
+                    print("Differentiable inputs", differentiable_inputs[0])
+                    raise RuntimeError("Wrong type for the only differentiable input for {}".format(name))
                 if_stmt = "true"
             fw_grad_defined = ""
             for inp in differentiable_inputs:

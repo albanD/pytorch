@@ -3436,8 +3436,7 @@ Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const
   return out_fw_grad;
 }
 
-template<typename T>
-Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const T& weight,
+Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const Tensor& weight,
                     const Tensor& self, const Tensor& end) {
   Tensor out_fw_grad;
 
@@ -3463,6 +3462,43 @@ Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const
   }
 
   return out_fw_grad;
+}
+
+// TODO handle special case at 0
+Tensor norm_forward(const Tensor& self_fw_grad, const Tensor& self, const optional<Scalar>& p_, const Tensor& norm) {
+  double p = p_.value_or(2.0).toDouble();
+  if (p == 0.0) {
+    return at::zeros_like(norm, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+  } else if (p == 1.0) {
+    return at::sum(self.sign() * self_fw_grad);
+  } else if (p == 2.0) {
+    return at::sum(self_fw_grad * self / norm);
+  } else if (std::isinf(p)) {
+    return evenly_read_forward(self_fw_grad, self, norm);
+  } else if (p < 2.0) {
+    return at::sum(self_fw_grad * self.sign() * self.abs().pow(p - 1) / norm.pow(p - 1));
+  } else {
+    return at::sum(self_fw_grad * self * self.abs().pow(p - 2) / norm.pow(p - 1));
+  }
+}
+
+// TODO handle special case at 0
+Tensor norm_forward_dim(const Tensor& self_fw_grad, const Tensor& self, const optional<Scalar>& p_, const Tensor& norm,
+                    IntArrayRef dim, bool keepdim) {
+  double p = p_.value_or(2.0).toDouble();
+  if (p == 0.0) {
+    return at::zeros_like(norm, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+  } else if (p == 1.0) {
+    return at::sum(self.sign() * self_fw_grad, dim, keepdim);
+  } else if (p == 2.0) {
+    return at::sum(self_fw_grad * self / norm, dim, keepdim);
+  } else if (std::isinf(p)) {
+    return evenly_read_forward(self_fw_grad, self, norm);
+  } else if (p < 2.0) {
+    return at::sum(self_fw_grad * self.sign() * self.abs().pow(p - 1) / norm.pow(p - 1), dim, keepdim);
+  } else {
+    return at::sum(self_fw_grad * self * self.abs().pow(p - 2) / norm.pow(p - 1), dim, keepdim);
+  }
 }
 
 } // namespace details
