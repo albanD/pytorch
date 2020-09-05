@@ -3501,6 +3501,26 @@ Tensor norm_forward_dim(const Tensor& self_fw_grad, const Tensor& self, const op
   }
 }
 
+Tensor pow_forward(const Tensor& self_fw_grad, const Tensor& exponent_fw_grad, const Tensor& self, const Tensor& exponent,
+                   const Tensor& result) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = self_fw_grad * exponent * result;
+  }
+
+  if (exponent_fw_grad.defined()) {
+    auto val = exponent_fw_grad * self.log() * result;
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
 } // namespace details
 } // namespace generated
 } // namespace autograd

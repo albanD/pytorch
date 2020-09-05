@@ -78,7 +78,7 @@ at::Tensor renorm_backward(const at::Tensor & grad, const at::Tensor & self, at:
 at::Tensor sum_tensorlist(at::TensorList tl);
 at::Tensor repeat_backward(at::Tensor grad, int64_t input_dims, at::IntArrayRef repeats);
 at::Tensor _fused_dropout_backward(at::Tensor grad, at::Tensor mask, double p1m);
-at::Tensor evenly_distribute_backward(at::Tensor grad, const at::Tensor & input, const at::Tensor & value);
+at::Tensor evenly_distribute_backward(const at::Tensor & grad, const at::Tensor & input, const at::Tensor & value);
 at::Tensor evenly_read_forward(const Tensor& fw_grad, const Tensor & input, const Tensor & value);
 at::Tensor index_select_backward(at::Tensor grad, int64_t dim, at::Tensor indices, at::IntArrayRef sizes, bool keepdim);
 at::Tensor slice_backward(at::Tensor grad, at::IntArrayRef input_sizes, int64_t dim, int64_t start, int64_t end, int64_t step);
@@ -256,9 +256,11 @@ Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c1
 Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices);
 Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const Tensor& weight,
                     const Tensor& self, const Tensor& end);
-at::Tensor norm_forward(const at::Tensor & self_fw_grad, const at::Tensor & self, const optional<at::Scalar> & p_, const at::Tensor & norm);
-at::Tensor norm_forward_dim(at::Tensor self_fw_grad, const at::Tensor & self, const optional<at::Scalar> & p_, at::Tensor norm, at::IntArrayRef dim, bool keepdim);
-
+at::Tensor norm_forward(const at::Tensor& self_fw_grad, const at::Tensor& self, const optional<at::Scalar> & p_, const at::Tensor& norm);
+at::Tensor norm_forward_dim(const at::Tensor& self_fw_grad, const at::Tensor& self, const optional<at::Scalar> & p_,
+                            const at::Tensor& norm, at::IntArrayRef dim, bool keepdim);
+Tensor pow_forward(const Tensor& self_fw_grad, const Tensor& exponent_fw_grad, const Tensor& self, const Tensor& exponent,
+                   const Tensor& result);
 
 #define FW_GRAD_DEF_EXPR(t1, t2, expr1, expr2, expr3, expr4) t1.defined() ? (t2.defined() ? expr1 : expr2) : (t2.defined() ? expr3 : expr4)
 #define FW_GRAD_ADD_DEF_EXPR(t1, t2, expr1, expr2) FW_GRAD_DEF_EXPR(t1, t2, expr1 + expr2, expr1, expr2, Tensor())

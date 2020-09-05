@@ -417,6 +417,7 @@
   self: logcumsumexp_backward(grad, self, result, dim)
   result: not_implemented("logcumsumexp forward mode")
 
+# TODO(albanD): handle 0 inputs in forward fomula
 - name: cumprod(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
   self: cumprod_backward(grad.to(self.scalar_type()), self, dim)
   result: "((self_fw_grad / self).cumsum(dim) * result).to(dtype.has_value() ? *dtype : self.scalar_type())"
@@ -949,46 +950,57 @@
 
 - name: _pdist_forward(Tensor self, float p=2) -> Tensor
   self: _pdist_backward(grad, self, p, result)
+  result: not_implemented("_pdist forward mode")
 
 - name: _pdist_backward(Tensor grad, Tensor self, float p, Tensor pdist) -> Tensor
   grad: not_implemented("_pdist_backward")
   self: not_implemented("_pdist_backward")
   pdist: not_implemented("_pdist_backward")
+  result: not_implemented("_pdist_backward forward mode")
 
 - name: _euclidean_dist(Tensor x1, Tensor x2) -> Tensor
   x1, x2: _euclidean_dist_backward(grad, x1, x2, result)
+  result: not_implemented("_euclidean_dist forward mode")
 
 - name: _cdist_forward(Tensor x1, Tensor x2, float p, int? compute_mode) -> Tensor
   x1: _cdist_backward(grad.contiguous(), x1, x2, p, result)
   x2: _cdist_backward(grad.transpose(-1, -2).contiguous(), x2, x1, p, result.transpose(-1, -2).contiguous())
+  result: not_implemented("_cdist forward mode")
 
 - name: _cdist_backward(Tensor grad, Tensor x1, Tensor x2, float p, Tensor cdist) -> Tensor
   grad: not_implemented("_cdist_backward")
   x1: not_implemented("_cdist_backward")
   x2: not_implemented("_cdist_backward")
   cdist: not_implemented("_cdist_backward")
+  result: not_implemented("_cdist_backward forward mode")
 
 - name: normal_(Tensor(a!) self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor(a!)
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: normal.Tensor_float(Tensor mean, float std=1, *, Generator? generator=None) -> Tensor
   mean: at::zeros(mean.sizes(), grad.options())
+  result: element_wise
 
 - name: normal.float_Tensor(float mean, Tensor std, *, Generator? generator=None) -> Tensor
   std: at::zeros(std.sizes(), grad.options())
+  result: element_wise
 
 - name: normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor
   mean: at::zeros(mean.sizes(), grad.options())
   std: at::zeros(std.sizes(), grad.options())
+  result: not_implemented("normal(Tensor, Tensor) forward mode")
 
 - name: orgqr(Tensor self, Tensor input2) -> Tensor
   self: not_implemented("orgqr")
   input2: not_implemented("orgqr")
+  result: not_implemented("orgqr forward mode")
 
 - name: ormqr(Tensor self, Tensor input2, Tensor input3, bool left=True, bool transpose=False) -> Tensor
   self: not_implemented("ormqr")
   input2: not_implemented("ormqr")
   input3: not_implemented("ormqr")
+  result: not_implemented("ormqr forward mode")
 
 - name: permute(Tensor(a) self, int[] dims) -> Tensor(a)
   self: permute_backwards(grad, dims)
@@ -996,6 +1008,7 @@
 
 - name: poisson(Tensor self, Generator? generator=None) -> Tensor
   self: zeros_like(self)
+  result: element_wise
 
 - name: pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor
   self: pow_backward(grad, self, exponent)
@@ -1004,47 +1017,63 @@
 - name: pow.Tensor_Tensor(Tensor self, Tensor exponent) -> Tensor
   self: pow_backward_self(grad, self, exponent)
   exponent: pow_backward_exponent(grad, self, exponent, result)
+  result: pow_forward(self_fw_grad, exponent_fw_grad, self, exponent, result)
 
 - name: pow.Scalar(Scalar self, Tensor exponent) -> Tensor
   exponent: pow_backward_exponent(grad, self, exponent, result)
+  result: element_wise
 
+# TODO(albanD): handle 0 inputs in forward fomula
 - name: prod(Tensor self, *, ScalarType? dtype=None) -> Tensor
   self: prod_backward(grad, self.to(grad.scalar_type()), result)
+  result: self_fw_grad * result / self
 
 - name: prod.dim_int(Tensor self, int dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor
   self: prod_backward(grad, self.to(grad.scalar_type()), result, dim, keepdim)
+  result: "self_fw_grad * (keepdim ? result : result.unsqueeze(dim)) / self"
 
 - name: put_(Tensor(a!) self, Tensor index, Tensor source, bool accumulate=False) -> Tensor(a!)
   self: grad.clone().put_(index, zeros_like(source, at::MemoryFormat::Preserve), accumulate)
   index: non_differentiable
   source: grad.take(index)
+  result: self_fw_grad.put_(index, source_fw_grad, accumulate)
 
 - name: qr(Tensor self, bool some=True) -> (Tensor Q, Tensor R)
   self: qr_backward(grads, self, some, Q, R)
+  Q: not_implemented("qr towards Q forward mode")
+  R: not_implemented("qr towards R forward mode")
 
 - name: rad2deg(Tensor self) -> Tensor
   self: rad2deg_backward(grad)
+  result: element_wise
 
 - name: random_.from(Tensor(a!) self, int from, int? to, *, Generator? generator=None) -> Tensor(a!)
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: random_.to(Tensor(a!) self, int to, *, Generator? generator=None) -> Tensor(a!)
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: random_(Tensor(a!) self, *, Generator? generator=None) -> Tensor(a!)
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: reciprocal(Tensor self) -> Tensor
   self: -grad * result * result
+  result: element_wise
 
 - name: remainder.Scalar(Tensor self, Scalar other) -> Tensor
   self: grad
+  result: self_fw_grad
 
 - name: remainder.Tensor(Tensor self, Tensor other) -> Tensor
   self: grad
+  result: self_fw_grad
 
 - name: renorm(Tensor self, Scalar p, int dim, Scalar maxnorm) -> Tensor
   self: renorm_backward(grad, self, p, dim, maxnorm)
+  result: not_implemented("renorm forward mode")
 
 - name: repeat(Tensor self, int[] repeats) -> Tensor
   self: repeat_backward(grad, self.dim(), repeats)
@@ -1059,23 +1088,28 @@
 
 - name: round(Tensor self) -> Tensor
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: rsqrt(Tensor self) -> Tensor
   self: -0.5 * grad * result.pow(3)
+  result: element_wise
 
 - name: scatter_.src(Tensor(a!) self, int dim, Tensor index, Tensor src) -> Tensor(a!)
   self: grad.clone().scatter_(dim, index, 0)
   index: non_differentiable
   src: grad.gather(dim, index)
+  result: self_fw_grad.scatter_(dim, index, src_fw_grad)
 
 - name: scatter_.value(Tensor(a!) self, int dim, Tensor index, Scalar value) -> Tensor(a!)
   self: grad.clone().scatter_(dim, index, 0)
   index: non_differentiable
+  result: self_fw_grad.scatter_(dim, index, 0.)
 
 - name: scatter_add_(Tensor(a!) self, int dim, Tensor index, Tensor src) -> Tensor(a!)
   self: grad
   index: non_differentiable
   src: grad.gather(dim, index)
+  result: self_fw_grad.scatter_add_(dim, index, src_fw_grad)
 
 - name: select.int(Tensor(a) self, int dim, int index) -> Tensor(a)
   self: select_backward(grad, self.sizes(), dim, index)
@@ -1087,15 +1121,19 @@
 
 - name: logit(Tensor self, float? eps=None) -> Tensor
   self: "GradMode::is_enabled() ? infinitely_differentiable_logit_backward(grad, self, eps) : logit_backward(grad, self, eps)"
+  result: logit_backward(self_fw_grad, self, eps)
 
 - name: sign(Tensor self) -> Tensor
   self: zeros_like(grad, at::MemoryFormat::Preserve)
+  result: element_wise
 
 - name: sin(Tensor self) -> Tensor
   self: grad * self.cos()
+  result: element_wise
 
 - name: sinh(Tensor self) -> Tensor
   self: grad * self.cosh()
+  result: element_wise
 
 - name: slice.Tensor(Tensor(a) self, int dim=0, int start=0, int end=9223372036854775807, int step=1) -> Tensor(a)
   self: slice_backward(grad, self.sizes(), dim, start, end, step)
@@ -1104,14 +1142,18 @@
 - name: slogdet(Tensor self) -> (Tensor sign, Tensor logabsdet)
   self: slogdet_backward(grad, self, sign, logabsdet)
   output_differentiability: [false, true]
+  logabsdet: not_implemented("slogdet forward mode")
 
 - name: solve(Tensor self, Tensor A) -> (Tensor solution, Tensor LU)
   self: solve_backward_self(grad, self, A)
   A: solve_backward_A(grad, self, A, solution)
+  solution: not_implemented("solve forward mode")
+  LU: not_implemented("solve forward mode")
 
 - name: sort(Tensor self, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)
   self: index_select_backward(grad, dim, indices, self.sizes(), true)
   output_differentiability: [True, False]
+  values: min_max_median_dim_forward(self_fw_grad, dim, indices, true)
 
 - name: split.Tensor(Tensor(a) self, int split_size, int dim=0) -> Tensor(a)[]
   self: split_backward(grads, split_size, dim, self.sizes(), self.options())
@@ -1119,15 +1161,19 @@
 
 - name: unsafe_split.Tensor(Tensor self, int split_size, int dim=0) -> Tensor[]
   self: split_backward(grads, split_size, dim, self.sizes(), self.options())
+  result: linear
 
 - name: split_with_sizes(Tensor(a) self, int[] split_sizes, int dim=0) -> Tensor(a)[]
   self: split_with_sizes_backward(grads, split_sizes, dim, self.sizes(), self.options())
+  result: linear
 
 - name: unsafe_split_with_sizes(Tensor self, int[] split_sizes, int dim=0) -> Tensor[]
   self: split_with_sizes_backward(grads, split_sizes, dim, self.sizes(), self.options())
+  result: linear
 
 - name: sqrt(Tensor self) -> Tensor
   self: grad / (2 * result)
+  result: element_wise
 
 - name: squeeze(Tensor(a) self) -> Tensor(a)
   self: unsqueeze_to(grad, self.sizes())
@@ -1139,15 +1185,19 @@
 
 - name: squeeze_(Tensor(a!) self) -> Tensor(a!)
   self: unsqueeze_to(grad, self.sizes())
+  result: self_fw_grad.squeeze_()
 
 - name: squeeze_.dim(Tensor(a!) self, int dim) -> Tensor(a!)
   self: unsqueeze_to(grad, dim, self.sizes())
+  result: self_fw_grad.squeeze_(dim)
 
 - name: std(Tensor self, bool unbiased=True) -> Tensor
   self: std_backward(result, grad, self, unbiased)
+  result: not_implemented("std forward mode")
 
 - name: std.dim(Tensor self, int[1] dim, bool unbiased=True, bool keepdim=False) -> Tensor
   self: std_backward(result, grad, self, dim, unbiased, keepdim)
+  result: not_implemented("std forward mode")
 
 - name: sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
   self: grad
