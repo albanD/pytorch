@@ -311,17 +311,19 @@ Tensor prod_backward(const Tensor& grad, const Tensor& input, const Tensor& resu
   } else if (zero_idx.size(0) > 1) {
     return at::zeros_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
   } else {
-    return prod_safe_zeros_backward(grad, input.contiguous().view(-1), 0).view_as(input);
+    return prod_safe_zeros_backward(grad.contiguous().view(-1), input.contiguous().view(-1), 0).view_as(input);
   }
 }
 
-Tensor prod_backward(Tensor grad, const Tensor& input, Tensor result, int64_t dim, bool keepdim) {
+Tensor prod_backward(Tensor grad, const Tensor& input, Tensor result, int64_t dim, bool keepdim, bool is_fw) {
   if (input.dim() == 0) {
     return grad;
   }
   dim = at::maybe_wrap_dim(dim, input.sizes().size());
   if (!keepdim && input.dim() != 1) {
-    grad = grad.unsqueeze(dim);
+    if (!is_fw) {
+      grad = grad.unsqueeze(dim);
+    }
     result = result.unsqueeze(dim);
   }
 
@@ -3421,13 +3423,12 @@ Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c1
 }
 
 Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices) {
-
   auto full_indices = indices;
   if (!keepdim) {
     full_indices = full_indices.unsqueeze(dim);
   }
 
-  auto out_fw_grad = at::gather(self_fw_grad, dim, indices);
+  auto out_fw_grad = at::gather(self_fw_grad, dim, full_indices);
 
   if (!keepdim) {
     out_fw_grad = out_fw_grad.squeeze(dim);
@@ -3464,7 +3465,7 @@ Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const
   return out_fw_grad;
 }
 
-// TODO handle special case at 0
+// TODO(albanD) handle special case at 0
 Tensor norm_forward(const Tensor& self_fw_grad, const Tensor& self, const optional<Scalar>& p_, const Tensor& norm) {
   double p = p_.value_or(2.0).toDouble();
   if (p == 0.0) {
@@ -3474,7 +3475,7 @@ Tensor norm_forward(const Tensor& self_fw_grad, const Tensor& self, const option
   } else if (p == 2.0) {
     return at::sum(self_fw_grad * self / norm);
   } else if (std::isinf(p)) {
-    return evenly_read_forward(self_fw_grad, self, norm);
+    return at::sum(self_fw_grad * self.sign() * (self.abs() == norm).type_as(self));
   } else if (p < 2.0) {
     return at::sum(self_fw_grad * self.sign() * self.abs().pow(p - 1) / norm.pow(p - 1));
   } else {
@@ -3482,20 +3483,34 @@ Tensor norm_forward(const Tensor& self_fw_grad, const Tensor& self, const option
   }
 }
 
-// TODO handle special case at 0
-Tensor norm_forward_dim(const Tensor& self_fw_grad, const Tensor& self, const optional<Scalar>& p_, const Tensor& norm,
+// TODO(albanD) handle special case at 0
+Tensor norm_forward_dim(const Tensor& self_fw_grad, const Tensor& self, const optional<Scalar>& p_, const Tensor& norm_,
                     IntArrayRef dim, bool keepdim) {
   double p = p_.value_or(2.0).toDouble();
+
+  auto norm = norm_;
+
+  if (!keepdim) {
+    auto sizes = self.sizes();
+    auto dims_to_unsqueeze = at::dim_list_to_bitset(dim, sizes.size());
+    for (size_t i = 0; i < sizes.size(); i++){
+      if (dims_to_unsqueeze[i]) {
+        norm = norm.unsqueeze(i);
+      }
+    }
+  }
+
   if (p == 0.0) {
-    return at::zeros_like(norm, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    return at::zeros_like(norm_, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
   } else if (p == 1.0) {
     return at::sum(self.sign() * self_fw_grad, dim, keepdim);
   } else if (p == 2.0) {
     return at::sum(self_fw_grad * self / norm, dim, keepdim);
   } else if (std::isinf(p)) {
-    return evenly_read_forward(self_fw_grad, self, norm);
+    return at::sum(self_fw_grad * self.sign() * (self.abs() == norm).type_as(self), dim, keepdim);
   } else if (p < 2.0) {
     return at::sum(self_fw_grad * self.sign() * self.abs().pow(p - 1) / norm.pow(p - 1), dim, keepdim);
+    // return at::sum(self_fw_grad * self.sign() * self.abs().pow(p - 1) / norm.pow(p - 1), dim, keepdim);
   } else {
     return at::sum(self_fw_grad * self * self.abs().pow(p - 2) / norm.pow(p - 1), dim, keepdim);
   }
@@ -3506,7 +3521,7 @@ Tensor pow_forward(const Tensor& self_fw_grad, const Tensor& exponent_fw_grad, c
   Tensor out_fw_grad;
 
   if (self_fw_grad.defined()) {
-    out_fw_grad = self_fw_grad * exponent * result;
+    out_fw_grad = self_fw_grad * exponent * self.pow(exponent - 1);
   }
 
   if (exponent_fw_grad.defined()) {

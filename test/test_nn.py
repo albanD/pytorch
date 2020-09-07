@@ -6350,24 +6350,24 @@ class TestNN(NNTestCase):
             if trans:
                 inp = inp.transpose(0, 1)
             for p in [0, 1, 2, 0.5, 1.5, 2.5, float('inf')]:
-                self.assertTrue(gradcheck(lambda x: F.pdist(x, p), (inp,)))
+                self.assertTrue(gradcheck(lambda x: F.pdist(x, p), (inp,), check_forward=False))
 
     def test_pdist_zeros(self):
         """Test that grad is still valid when dist is 0"""
         for device in device_():
             inp = torch.randn(1, 3, dtype=torch.double, device=device, requires_grad=True).repeat([2, 1])
             for p in [0, 1, 2, 0.5, 1.5, 2.5, float('inf')]:
-                self.assertTrue(gradcheck(lambda x: F.pdist(x, p), (inp,)))
+                self.assertTrue(gradcheck(lambda x: F.pdist(x, p), (inp,), check_forward=False))
 
     def test_pdist_empty_row(self):
         for device in device_():
             inp = torch.randn(1, 3, dtype=torch.double, device=device, requires_grad=True)
-            self.assertTrue(gradcheck(F.pdist, (inp,)))
+            self.assertTrue(gradcheck(F.pdist, (inp,), check_forward=False))
 
     def test_pdist_empty_col(self):
         for device in device_():
             inp = torch.randn(4, 0, dtype=torch.double, device=device, requires_grad=True)
-            self.assertTrue(gradcheck(F.pdist, (inp,)))
+            self.assertTrue(gradcheck(F.pdist, (inp,), check_forward=False))
 
     @unittest.expectedFailure
     def test_pdist_cpu_gradgrad_unimplemented(self):
@@ -6973,7 +6973,7 @@ class TestNN(NNTestCase):
                     self.assertTrue(gradcheck(
                         lambda inp, grid: F.grid_sample(inp, grid, mode=mode, padding_mode=padding_mode,
                                                         align_corners=align_corners),
-                        (input, grid)))
+                        (input, grid), check_forward=False))
 
                     test(N, C, H, W, mode, padding_mode, align_corners=align_corners)
                     if TEST_CUDNN:
@@ -7095,7 +7095,7 @@ class TestNN(NNTestCase):
                     self.assertTrue(gradcheck(
                         lambda inp, grid: F.grid_sample(inp, grid, mode=mode, padding_mode=padding_mode,
                                                         align_corners=align_corners),
-                        (input, grid)))
+                        (input, grid), check_forward=False))
 
                     test(N, C, D, H, W, mode, padding_mode, align_corners)
 
@@ -7123,7 +7123,7 @@ class TestNN(NNTestCase):
                 warnings.simplefilter("always")  # python2 requires this so other tests can trigger
                 self.assertTrue(gradcheck(
                     lambda inp: F.affine_grid(inp, sz, align_corners=align_corners),
-                    (inp,)))
+                    (inp,), check_forward=False))
 
         # test CPU against CUDA
         if TEST_CUDA:
@@ -7174,7 +7174,7 @@ class TestNN(NNTestCase):
                 warnings.simplefilter("always")  # python2 requires this so other tests can trigger
                 self.assertTrue(gradcheck(
                     lambda inp: F.affine_grid(inp, sz, align_corners=align_corners),
-                    (inp,)))
+                    (inp,), check_forward=False))
 
         # test CPU against CUDA
         if TEST_CUDA:
@@ -7834,7 +7834,7 @@ class TestNN(NNTestCase):
         weight = torch.randn(3, 5, 6, requires_grad=True)
         bias = torch.randn(6, requires_grad=True)
 
-        gradcheck(lambda i, w, b, pad: F.conv_tbc(i, w, b, pad), (inp, weight, bias, 3))
+        gradcheck(lambda i, w, b, pad: F.conv_tbc(i, w, b, pad), (inp, weight, bias, 3), check_forward=False)
 
     def run_conv_double_back_test(self, kern, stride, padding, chan_in, chan_out, batch_size,
                                   inp_size, dilation, no_weight, groups=1, use_cuda=False,
@@ -11085,7 +11085,7 @@ class TestNNDeviceType(NNTestCase):
         running_var = 2 * torch.arange(n_feat, device=device, dtype=dtype)
         for training in [False, True]:
             _assertGradAndGradgradChecks(self, F.batch_norm, (input, running_mean, running_var, weight, bias,
-                                                              training, 0.1, 0.0001))
+                                                              training, 0.1, 0.0001), check_gradgradfw=False)
 
     def test_batchnorm_grad(self, device):
         self._test_batchnorm_grad(device)

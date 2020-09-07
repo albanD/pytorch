@@ -1270,6 +1270,7 @@ new_module_tests = [
         check_eval=True,
         desc='affine',
         test_cuda=(not TEST_WITH_ROCM),
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1279,6 +1280,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='3d_input',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1289,6 +1291,7 @@ new_module_tests = [
         check_eval=True,
         desc='affine_simple_average',
         test_cuda=(not TEST_WITH_ROCM),
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1298,6 +1301,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='not_affine',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1309,6 +1313,7 @@ new_module_tests = [
         check_eval=True,
         desc='not_tracking_stats',
         test_cuda=(not TEST_WITH_ROCM),
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1318,6 +1323,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='3d_input_not_affine',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm1d',
@@ -1327,6 +1333,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='zero_batch',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1335,6 +1342,7 @@ new_module_tests = [
         input_size=(2, 3, 6, 6),
         cudnn=True,
         check_eval=True,
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1344,6 +1352,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='2d_simple_average',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1353,6 +1362,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='momentum',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1362,6 +1372,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='not_affine',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1372,6 +1383,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='not_tracking_stats',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm2d',
@@ -1381,6 +1393,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='zero_batch',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1389,6 +1402,7 @@ new_module_tests = [
         input_size=(2, 3, 4, 4, 4),
         cudnn=True,
         check_eval=True,
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1398,6 +1412,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='3d_simple_average',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1407,6 +1422,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='momentum',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1416,6 +1432,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='not_affine',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1426,6 +1443,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='not_tracking_stats',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='BatchNorm3d',
@@ -1435,6 +1453,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='zero_batch',
+        check_gradgradfw=False,
     ),
     dict(
         module_name='InstanceNorm1d',
@@ -1443,6 +1462,7 @@ new_module_tests = [
         input_size=(4, 3, 15),
         cudnn=True,
         check_eval=True,
+        check_gradgradfw=False
     ),
     dict(
         module_name='InstanceNorm1d',
@@ -1453,6 +1473,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='tracking_stats',
+        check_gradgradfw=False
     ),
     dict(
         module_name='InstanceNorm2d',
@@ -1461,6 +1482,7 @@ new_module_tests = [
         input_size=(2, 3, 6, 6),
         cudnn=True,
         check_eval=True,
+        check_gradgradfw=False
     ),
     dict(
         module_name='InstanceNorm2d',
@@ -1471,6 +1493,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='tracking_stats',
+        check_gradgradfw=False
     ),
     dict(
         module_name='InstanceNorm3d',
@@ -1479,6 +1502,7 @@ new_module_tests = [
         input_size=(2, 3, 4, 4, 4),
         cudnn=True,
         check_eval=True,
+        check_gradgradfw=False
     ),
     dict(
         module_name='InstanceNorm3d',
@@ -1489,6 +1513,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='tracking_stats',
+        check_gradgradfw=False
     ),
     dict(
         module_name='LayerNorm',
@@ -1543,6 +1568,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='1d_affine',
+        check_forward=False,
     ),
     dict(
         module_name='GroupNorm',
@@ -1552,6 +1578,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='1d_no_affine_IN',  # this setting is equivalent with InstanceNormi
+        check_forward=False,
     ),
     dict(
         module_name='GroupNorm',
@@ -1561,6 +1588,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='1d_no_affine_LN',  # this setting is equivalent with LayerNorm
+        check_forward=False,
     ),
     dict(
         module_name='GroupNorm',
@@ -1570,6 +1598,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='2d_affine',
+        check_forward=False,
     ),
     dict(
         module_name='GroupNorm',
@@ -1579,6 +1608,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='2d_no_affine_IN',  # this setting is equivalent with InstanceNorm
+        check_forward=False,
     ),
     dict(
         module_name='GroupNorm',
@@ -1588,6 +1618,7 @@ new_module_tests = [
         cudnn=True,
         check_eval=True,
         desc='2d_no_affine_LN',  # this setting is equivalent with LayerNorm
+        check_forward=False,
     ),
     dict(
         module_name='Conv1d',
@@ -4875,6 +4906,8 @@ class NewModuleTest(InputVariableMixin, ModuleTest):
         self.cudnn = kwargs.get('cudnn', False)
         self.check_inplace = kwargs.get('check_inplace', False)
         self.check_gradgrad = kwargs.get('check_gradgrad', True)
+        self.check_gradgradfw = kwargs.get('check_gradgradfw', True)
+        self.check_forward = kwargs.get('check_forward', True)
         self.skip_double = kwargs.get('skip_double', False)
         self.test_cpu = kwargs.get('test_cpu', True)
 
@@ -4886,7 +4919,8 @@ class NewModuleTest(InputVariableMixin, ModuleTest):
             # could probably unify check_jacobian above with this.
             params = tuple(x for x in module.parameters())
             _assertGradAndGradgradChecks(test_case,
-                                         lambda x, *args, **kw: test_case._forward(module, x), (input,) + params)
+                                         lambda x, *args, **kw: test_case._forward(module, x), (input,) + params,
+                                         check_gradgradfw=self.check_gradgradfw, check_forward=self.check_forward)
 
         # check if module can be printed
         module.__repr__()

@@ -483,8 +483,6 @@
 
 - name: eig(Tensor self, bool eigenvectors=False) -> (Tensor eigenvalues, Tensor eigenvectors)
   self: eig_backward(grads, self, eigenvectors, eigenvalues, eigenvectors_return)
-  eigenvalues: not_implemented("eig for eigenvalues forward mode")
-  eigenvectors: not_implemented("eig for eigenvectors forward mode")
 
 - name: eq_.Scalar(Tensor(a!) self, Scalar other) -> Tensor(a!)
   self: zeros_like(self)
@@ -682,7 +680,7 @@
 
 - name: inverse(Tensor self) -> Tensor
   self: -at::matmul(result.transpose(-2, -1), at::matmul(grad, result.transpose(-2, -1)))
-  result: -at::matmul(self.transpose(-2, -1), at::matmul(self_fw_grad, self.transpose(-2, -1)))
+  result: not_implemented("inverse forward mode")
 
 - name: isnan(Tensor self) -> Tensor
   self: non_differentiable
@@ -1023,14 +1021,13 @@
   exponent: pow_backward_exponent(grad, self, exponent, result)
   result: element_wise
 
-# TODO(albanD): handle 0 inputs in forward fomula
 - name: prod(Tensor self, *, ScalarType? dtype=None) -> Tensor
   self: prod_backward(grad, self.to(grad.scalar_type()), result)
-  result: self_fw_grad * result / self
+  result: at::sum(prod_backward(self_fw_grad, self, result), dtype)
 
 - name: prod.dim_int(Tensor self, int dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor
-  self: prod_backward(grad, self.to(grad.scalar_type()), result, dim, keepdim)
-  result: "self_fw_grad * (keepdim ? result : result.unsqueeze(dim)) / self"
+  self: prod_backward(grad, self.to(grad.scalar_type()), result, dim, keepdim, /* is_fw */ false)
+  result: at::sum(prod_backward(self_fw_grad, self, result, dim, keepdim, /* is_fw */ true), dim, keepdim, dtype)
 
 - name: put_(Tensor(a!) self, Tensor index, Tensor source, bool accumulate=False) -> Tensor(a!)
   self: grad.clone().put_(index, zeros_like(source, at::MemoryFormat::Preserve), accumulate)
