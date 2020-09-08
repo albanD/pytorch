@@ -30,6 +30,7 @@ struct IndexRangeGenerator {
 };
 
 bool isFwGradDefined(const c10::optional<Tensor>& t);
+Tensor toLegacyTensor(const c10::optional<Tensor>& t);
 Tensor toLegacyFwGrad(const c10::optional<Tensor>& t);
 
 bool any_variable_defined(variable_list& variables);
@@ -211,17 +212,52 @@ infinitely_differentiable_native_layer_norm_backward(
 Tensor mkldnn_convolution_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
         const Tensor& self, const Tensor& weight, IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups,
         const Tensor& result);
-Tensor thnn_conv2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, IntArrayRef kernel_size, const Tensor& bias_fw_grad,
-        const Tensor& self, const Tensor& weight, IntArrayRef stride, IntArrayRef padding, const Tensor& result);
-Tensor slow_conv_dilated2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, IntArrayRef kernel_size, const Tensor& bias_fw_grad,
-        const Tensor& self, const Tensor& weight, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, const Tensor& result);
+Tensor thnn_conv2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, const Tensor& result);
+Tensor slow_conv_dilated2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation,
+        const Tensor& result);
+Tensor convolution_overrideable_forward(const Tensor& input_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& input, const Tensor& weight, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, bool transposed,
+        IntArrayRef output_padding, int groups, const Tensor& result);
+Tensor slow_conv_transpose2d_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding,
+        IntArrayRef output_padding, IntArrayRef dilation, const Tensor& result);
+Tensor slow_conv_transpose3d_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding,
+        IntArrayRef output_padding, IntArrayRef dilation, const Tensor& result);
+Tensor thnn_conv_depthwise2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding,
+        IntArrayRef dilation, const Tensor& result);
+Tensor slow_conv3d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding,
+        const Tensor& result);
+Tensor slow_conv_dilated3d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding,
+        IntArrayRef dilation, const Tensor& result);
+Tensor cudnn_convolution_transpose_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& self,
+        const Tensor& weight, IntArrayRef padding, IntArrayRef output_padding, IntArrayRef stride,
+        IntArrayRef dilation, int groups, bool benchmark, bool deterministic);
+Tensor cudnn_convolution_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& self,
+        const Tensor& weight, IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation,
+        int groups, bool benchmark, bool deterministic);
+Tensor miopen_convolution_transpose_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef padding, IntArrayRef output_padding, IntArrayRef stride,
+        IntArrayRef dilation, int groups, bool benchmark, bool deterministic, const Tensor& result);
+Tensor miopen_convolution_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation,
+        int groups, bool benchmark, bool deterministic, const Tensor& result);
+Tensor miopen_depthwise_convolution_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
+        const Tensor& self, const Tensor& weight, IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation,
+        int groups, bool benchmark, bool deterministic, const Tensor& result);
+
 Tensor native_batch_norm_forward(const Tensor& input_fw_grad, const Tensor& input, const c10::optional<at::Tensor> weight,
-        const c10::optional<at::Tensor>  running_mean, const c10::optional<at::Tensor>  running_var, const Tensor& result1,
+        const c10::optional<at::Tensor>  running_mean, const c10::optional<at::Tensor> running_var, const Tensor& result1,
         const Tensor& result2, bool training, float eps, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad);
 Tensor native_layer_norm_forward(const Tensor& input_fw_grad, const Tensor& input, const c10::optional<at::Tensor> weight,
         const Tensor& result1, const Tensor& result2, int64_t M, int64_t N, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
         const Tensor& result);
-Tensor max_pool2d_with_indices_forward(const Tensor& self_fw_grad, const Tensor& indices);
+Tensor max_pool_with_indices_forward(const Tensor& self_fw_grad, const Tensor& indices, bool is_2d=true);
 Tensor addmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, const Tensor& mat2_fw_grad,
         Scalar beta, Scalar alpha, const Tensor& mat1, const Tensor& mat2);
 Tensor addbmm_forward(const Tensor& self_fw_grad, const Tensor& batch1_fw_grad, const Tensor& batch2_fw_grad,
@@ -235,7 +271,7 @@ Tensor _bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
 Tensor _log_softmax_foward(const Tensor& self_fw_grad, const Tensor& result, int dim);
 Tensor stack_forward(at::TensorList tensors, int64_t dim);
 Tensor cat_forward(at::TensorList tensors, int64_t dim);
-Tensor min_max_median_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim);
+Tensor index_select_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim);
 Tensor index_add_forward(const Tensor& self_fw_grad, const Tensor& source_fw_grad, int dim, const Tensor& index, const Tensor& self);
 at::Tensor apply_loss_reduction(const at::Tensor& unreduced, int64_t reduction);
 Tensor binary_cross_entropy_with_logits_forward(const at::Tensor& self_fw_grad, const at::Tensor& target_fw_grad,
@@ -253,7 +289,6 @@ Tensor addmv_forward(const Tensor& self_fw_grad, const Tensor& mat_fw_grad, cons
 Tensor addr_forward(const Tensor& self_fw_grad, const Tensor& vec1_fw_grad, const Tensor& vec2_fw_grad,
                     const Scalar& beta, const Scalar& alpha, const Tensor& vec1, const Tensor& vec2);
 Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c10::optional<long int> dim, const Tensor& self, const Tensor& other);
-Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices);
 Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const Tensor& weight,
                     const Tensor& self, const Tensor& end);
 at::Tensor norm_forward(const at::Tensor& self_fw_grad, const at::Tensor& self, const optional<at::Scalar> & p_, const at::Tensor& norm);
@@ -261,6 +296,12 @@ at::Tensor norm_forward_dim(const at::Tensor& self_fw_grad, const at::Tensor& se
                             const at::Tensor& norm, at::IntArrayRef dim, bool keepdim);
 Tensor pow_forward(const Tensor& self_fw_grad, const Tensor& exponent_fw_grad, const Tensor& self, const Tensor& exponent,
                    const Tensor& result);
+Tensor _trilinear_forward(const Tensor& i1_fw_grad, const Tensor& i2_fw_grad, const Tensor& i3_fw_grad, const Tensor& i1,
+                          const Tensor& i2, const Tensor& i3, IntArrayRef expand1, IntArrayRef expand2, IntArrayRef expand3,
+                          IntArrayRef sumdim);
+Tensor kl_div_forward(const at::Tensor& self_fw_grad, const at::Tensor& target_fw_grad,
+        const at::Tensor& self, const at::Tensor& target, int64_t reduction, bool log_target);
+Tensor prelu_forward(const at::Tensor& self_fw_grad, const at::Tensor& weight_fw_grad, const at::Tensor& self, const at::Tensor& weight);
 
 #define FW_GRAD_DEF_EXPR(t1, t2, expr1, expr2, expr3, expr4) t1.defined() ? (t2.defined() ? expr1 : expr2) : (t2.defined() ? expr3 : expr4)
 #define FW_GRAD_ADD_DEF_EXPR(t1, t2, expr1, expr2) FW_GRAD_DEF_EXPR(t1, t2, expr1 + expr2, expr1, expr2, Tensor())

@@ -2788,114 +2788,168 @@ Tensor _cudnn_ctc_loss_backward(const Tensor& grad_out, const Tensor& loss, cons
   }
 }
 
-Tensor mkldnn_convolution_forward(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
-        const Tensor& self, const Tensor& weight, IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups,
-        const Tensor& result) {
-  Tensor out_fw_grad;
-
-  if (self_fw_grad.defined()) {
-    out_fw_grad = at::mkldnn_convolution(self_fw_grad, weight, Tensor(), padding, stride, dilation, groups);
+#define BIAS_DEF const Tensor& bias_fw_grad,
+#define BIAS_NONE Tensor(),
+#define BIAS_VAL bias_fw_grad,
+#define BIAS_GRAD                                                                                     \
+  else if (bias_fw_grad.defined()) {                                                                  \
+    auto view_size = result.sizes().vec();                                                            \
+    for (auto dim = 0; dim < view_size.size(); ++dim) {                                               \
+      if (dim != 1) {                                                                                 \
+        view_size[dim] = 1;                                                                           \
+      }                                                                                               \
+    }                                                                                                 \
+                                                                                                      \
+    if (out_fw_grad.defined()) {                                                                      \
+      out_fw_grad = out_fw_grad + bias_fw_grad.view(view_size);                                       \
+    } else {                                                                                          \
+      out_fw_grad = bias_fw_grad.view(view_size).expand_as(result);                                   \
+    }                                                                                                 \
   }
 
-  if (weight_fw_grad.defined()) {
-    auto val = at::mkldnn_convolution(self, weight_fw_grad, bias_fw_grad, padding, stride, dilation, groups);
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + val;
-    } else {
-      out_fw_grad = val;
-    }
-  } else if (bias_fw_grad.defined()) {
-    // Used to make the broadcasting work when working with channel-only values
-    auto view_size = result.sizes().vec();
-    for (auto dim = 0; dim < view_size.size(); ++dim) {
-      // Don't change the channel size
-      if (dim != 1) {
-        view_size[dim] = 1;
-      }
-    }
-
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + bias_fw_grad.view(view_size);
-    } else {
-      out_fw_grad = bias_fw_grad.view(view_size).expand_as(result);
-    }
-  }
-
-  return out_fw_grad;
+#define GEN_CONV_FORWARD(fn_name, fn_def_extra_args, eval_fn_begin, eval_fn_extra_args_first, eval_fn_extra_args_second, eval_fn_end)  \
+Tensor fn_name(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, BIAS_DEF \
+        const Tensor& self, const Tensor& weight, fn_def_extra_args, const Tensor& result) {          \
+  Tensor out_fw_grad;                                                                                 \
+                                                                                                      \
+  if (self_fw_grad.defined()) {                                                                       \
+    out_fw_grad = eval_fn_begin (self_fw_grad, weight, eval_fn_extra_args_first BIAS_NONE eval_fn_extra_args_second)eval_fn_end;       \
+  }                                                                                                   \
+                                                                                                      \
+  if (weight_fw_grad.defined()) {                                                                     \
+    auto val = eval_fn_begin (self, weight_fw_grad, eval_fn_extra_args_first BIAS_VAL eval_fn_extra_args_second)eval_fn_end ;      \
+    if (out_fw_grad.defined()) {                                                                      \
+      out_fw_grad = out_fw_grad + val;                                                                \
+    } else {                                                                                          \
+      out_fw_grad = val;                                                                              \
+    }                                                                                                 \
+  }                                                                                                   \
+  BIAS_GRAD                                                                                           \
+                                                                                                      \
+  return out_fw_grad;                                                                                 \
 }
 
-Tensor thnn_conv2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, IntArrayRef kernel_size, const Tensor& bias_fw_grad,
-        const Tensor& self, const Tensor& weight, IntArrayRef stride, IntArrayRef padding, const Tensor& result) {
-  Tensor out_fw_grad;
+#define CONV_DEF IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups
+#define CONV_EVAL at::mkldnn_convolution
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, stride, dilation, groups
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(mkldnn_convolution_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  if (self_fw_grad.defined()) {
-    out_fw_grad = std::get<0>(at::thnn_conv2d_forward(self_fw_grad, weight, kernel_size, Tensor(), stride, padding));
-  }
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding
+#define CONV_EVAL std::get<0>(at::thnn_conv2d_forward
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding
+#define CONV_EVAL_END )
+GEN_CONV_FORWARD(thnn_conv2d_forward_grad, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  if (weight_fw_grad.defined()) {
-    auto val = std::get<0>(at::thnn_conv2d_forward(self, weight_fw_grad, kernel_size, bias_fw_grad, stride, padding));
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + val;
-    } else {
-      out_fw_grad = val;
-    }
-  } else if (bias_fw_grad.defined()) {
-    // Used to make the broadcasting work when working with channel-only values
-    auto view_size = result.sizes().vec();
-    for (auto dim = 0; dim < view_size.size(); ++dim) {
-      // Don't change the channel size
-      if (dim != 1) {
-        view_size[dim] = 1;
-      }
-    }
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation
+#define CONV_EVAL at::slow_conv_dilated2d
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding, dilation
+#define CONV_EVAL_END
+GEN_CONV_FORWARD(slow_conv_dilated2d_forward_grad, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + bias_fw_grad.view(view_size);
-    } else {
-      out_fw_grad = bias_fw_grad.view(view_size).expand_as(result);
-    }
-  }
+#define CONV_DEF IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, bool transposed, IntArrayRef output_padding, int groups
+#define CONV_EVAL at::convolution_overrideable
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND stride, padding, dilation, transposed, output_padding, groups
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(convolution_overrideable_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  return out_fw_grad;
-}
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef output_padding, IntArrayRef dilation
+#define CONV_EVAL at::slow_conv_transpose2d
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding, output_padding, dilation
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(slow_conv_transpose2d_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-Tensor slow_conv_dilated2d_forward_grad(const Tensor& self_fw_grad, const Tensor& weight_fw_grad, IntArrayRef kernel_size, const Tensor& bias_fw_grad,
-        const Tensor& self, const Tensor& weight, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, const Tensor& result) {
-  Tensor out_fw_grad;
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef output_padding, IntArrayRef dilation
+#define CONV_EVAL at::slow_conv_transpose3d
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding, output_padding, dilation
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(slow_conv_transpose3d_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  if (self_fw_grad.defined()) {
-    out_fw_grad = at::slow_conv_dilated2d(self_fw_grad, weight, kernel_size, Tensor(), stride, padding, dilation);
-  }
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation
+#define CONV_EVAL at::thnn_conv_depthwise2d_forward
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding, dilation
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(thnn_conv_depthwise2d_forward_grad, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  if (weight_fw_grad.defined()) {
-    auto val = at::slow_conv_dilated2d(self, weight_fw_grad, kernel_size, bias_fw_grad, stride, padding, dilation);
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + val;
-    } else {
-      out_fw_grad = val;
-    }
-  } else if (bias_fw_grad.defined()) {
-    // Used to make the broadcasting work when working with channel-only values
-    auto view_size = result.sizes().vec();
-    for (auto dim = 0; dim < view_size.size(); ++dim) {
-      // Don't change the channel size
-      if (dim != 1) {
-        view_size[dim] = 1;
-      }
-    }
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding
+#define CONV_EVAL std::get<0>(at::slow_conv3d_forward
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding
+#define CONV_EVAL_END )
+GEN_CONV_FORWARD(slow_conv3d_forward_grad, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-    if (out_fw_grad.defined()) {
-      out_fw_grad = out_fw_grad + bias_fw_grad.view(view_size);
-    } else {
-      out_fw_grad = bias_fw_grad.view(view_size).expand_as(result);
-    }
-  }
+#define CONV_DEF IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation
+#define CONV_EVAL at::slow_conv_dilated3d
+#define CONV_ARG_FIRST kernel_size,
+#define CONV_ARG_SECOND stride, padding, dilation
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(slow_conv_dilated3d_forward_grad, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
 
-  return out_fw_grad;
-}
+#define CONV_DEF IntArrayRef padding, IntArrayRef output_padding, IntArrayRef stride, IntArrayRef dilation, int groups, bool benchmark, bool deterministic
+#define CONV_EVAL at::miopen_convolution_transpose
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, output_padding, stride, dilation, groups, benchmark, deterministic
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(miopen_convolution_transpose_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
+
+#define CONV_DEF IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups, bool benchmark, bool deterministic
+#define CONV_EVAL at::miopen_convolution
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, stride, dilation, groups, benchmark, deterministic
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(miopen_convolution_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
+
+#define CONV_DEF IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups, bool benchmark, bool deterministic
+#define CONV_EVAL at::miopen_depthwise_convolution
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, stride, dilation, groups, benchmark, deterministic
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(miopen_depthwise_convolution_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
+
+
+// Generate the ones without biases now
+#define BIAS_DEF
+#define BIAS_NONE
+#define BIAS_VAL
+#define BIAS_GRAD
+
+#define CONV_DEF IntArrayRef padding, IntArrayRef output_padding, IntArrayRef stride, IntArrayRef dilation, int groups, bool benchmark, bool deterministic
+#define CONV_EVAL at::cudnn_convolution_transpose
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, output_padding, stride, dilation, groups, benchmark, deterministic
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(cudnn_convolution_transpose_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
+
+#define CONV_DEF IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int groups, bool benchmark, bool deterministic
+#define CONV_EVAL at::cudnn_convolution
+#define CONV_ARG_FIRST
+#define CONV_ARG_SECOND padding, stride, dilation, groups, benchmark, deterministic
+#define CONV_EVAL_END 
+GEN_CONV_FORWARD(cudnn_convolution_forward, CONV_DEF, CONV_EVAL, CONV_ARG_FIRST, CONV_ARG_SECOND, CONV_EVAL_END)
+
+
+#undef BIAS_DEF
+#undef BIAS_NONE
+#undef BIAS_VAL
+#undef BIAS_GRAD
+
+#undef CONV_DEF
+#undef CONV_EVAL
+#undef CONV_ARG_FIRST
+#undef CONV_ARG_SECOND
+#undef CONV_EVAL_END 
+
+#undef GEN_CONV_FORWARD
 
 Tensor native_batch_norm_forward(const Tensor& input_fw_grad, const Tensor& input, const c10::optional<at::Tensor> weight,
-        const c10::optional<at::Tensor>  running_mean, const c10::optional<at::Tensor>  running_var, const Tensor& result1,
+        const c10::optional<at::Tensor>  running_mean, const c10::optional<at::Tensor> running_var, const Tensor& result1,
         const Tensor& result2, bool training, float eps, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad) {
   Tensor out_fw_grad;
 
@@ -2936,6 +2990,8 @@ Tensor native_batch_norm_forward(const Tensor& input_fw_grad, const Tensor& inpu
   }
   return out_fw_grad;
 }
+
+
 
 Tensor native_layer_norm_forward(const Tensor& input_fw_grad, const Tensor& input, const c10::optional<at::Tensor> weight,
         const Tensor& result1, const Tensor& result2, int64_t M, int64_t N, const Tensor& weight_fw_grad, const Tensor& bias_fw_grad,
@@ -2984,14 +3040,24 @@ Tensor native_layer_norm_forward(const Tensor& input_fw_grad, const Tensor& inpu
   return out_fw_grad;
 }
 
-Tensor max_pool2d_with_indices_forward(const Tensor& self_fw_grad, const Tensor& indices) {
+Tensor max_pool_with_indices_forward(const Tensor& self_fw_grad, const Tensor& indices, bool is_2d) {
   auto out_size = indices.sizes().vec();
   auto lin_size = out_size;
-  if (out_size.size() == 4) {
-    // batch mode
-    lin_size = {out_size[0], out_size[1], -1};
+  if (is_2d) {
+    if (out_size.size() == 4) {
+      // batch mode
+      lin_size = {out_size[0], out_size[1], -1};
+    } else {
+      lin_size = {out_size[0], -1};
+    }
   } else {
-    lin_size = {out_size[0], -1};
+    // 3d mode
+    if (out_size.size() == 5) {
+      // batch mode
+      lin_size = {out_size[0], out_size[1], out_size[2], -1};
+    } else {
+      lin_size = {out_size[0], out_size[1], -1};
+    }
   }
   auto linearized_fw_grad = self_fw_grad.view(lin_size);
   auto linearized_ind = indices.view(lin_size);
@@ -3225,7 +3291,6 @@ at::Tensor apply_loss_reduction(const at::Tensor& unreduced, int64_t reduction) 
   return unreduced;
 }
 
-
 Tensor binary_cross_entropy_with_logits_forward(const at::Tensor& self_fw_grad, const at::Tensor& target_fw_grad,
         const at::Tensor& self, const at::Tensor& target, const c10::optional<at::Tensor> weight,
         const c10::optional<at::Tensor> pos_weight, int64_t reduction) {
@@ -3237,6 +3302,30 @@ Tensor binary_cross_entropy_with_logits_forward(const at::Tensor& self_fw_grad, 
 
   if (target_fw_grad.defined()) {
     auto val = binary_cross_entropy_with_logits_target_backward(target_fw_grad, self, target, weight, pos_weight, at::Reduction::None);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (out_fw_grad.defined()) {
+    out_fw_grad = apply_loss_reduction(out_fw_grad, reduction);
+  }
+
+  return out_fw_grad;
+}
+
+Tensor kl_div_forward(const at::Tensor& self_fw_grad, const at::Tensor& target_fw_grad,
+        const at::Tensor& self, const at::Tensor& target, int64_t reduction, bool log_target) {
+  Tensor out_fw_grad;
+
+  if (self_fw_grad.defined()) {
+    out_fw_grad = at::kl_div_backward(self_fw_grad, self, target, at::Reduction::None, log_target);
+  }
+
+  if (target_fw_grad.defined()) {
+    auto val = kl_div_target_backward(target_fw_grad, self, target, at::Reduction::None, log_target);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {
@@ -3293,7 +3382,7 @@ Tensor min_max_other_forward(const at::Tensor& self_fw_grad, const at::Tensor& o
   return out_fw_grad;
 }
 
-Tensor min_max_median_dim_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim) {
+Tensor index_select_forward(const Tensor& self_fw_grad, int64_t dim, const Tensor& indices, bool keepdim) {
   auto full_indices = indices;
   if (!keepdim) {
     full_indices = indices.unsqueeze(dim);
@@ -3422,21 +3511,6 @@ Tensor cross_forward(const Tensor& self_fw_grad, const Tensor& other_fw_grad, c1
   return out_fw_grad;
 }
 
-Tensor kthvalue_forward(const Tensor& self_fw_grad, int dim, bool keepdim, const Tensor& indices) {
-  auto full_indices = indices;
-  if (!keepdim) {
-    full_indices = full_indices.unsqueeze(dim);
-  }
-
-  auto out_fw_grad = at::gather(self_fw_grad, dim, full_indices);
-
-  if (!keepdim) {
-    out_fw_grad = out_fw_grad.squeeze(dim);
-  }
-
-  return out_fw_grad;
-}
-
 Tensor lerp_forward(const Tensor& self_fw_grad, const Tensor& end_fw_grad, const Tensor& weight_fw_grad, const Tensor& weight,
                     const Tensor& self, const Tensor& end) {
   Tensor out_fw_grad;
@@ -3535,6 +3609,67 @@ Tensor pow_forward(const Tensor& self_fw_grad, const Tensor& exponent_fw_grad, c
 
   return out_fw_grad;
 }
+
+Tensor _trilinear_forward(const Tensor& i1_fw_grad, const Tensor& i2_fw_grad, const Tensor& i3_fw_grad, const Tensor& i1,
+                          const Tensor& i2, const Tensor& i3, IntArrayRef expand1, IntArrayRef expand2, IntArrayRef expand3,
+                          IntArrayRef sumdim) {
+  Tensor out_fw_grad;
+
+  if (i1_fw_grad.defined()) {
+    out_fw_grad = at::_trilinear(i1_fw_grad, i2, i3, sumdim, expand2, expand3, expand1);
+  }
+
+  if (i2_fw_grad.defined()) {
+    auto val = at::_trilinear(i1, i2_fw_grad, i3, expand1, sumdim, expand3, expand2);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  if (i3_fw_grad.defined()) {
+    auto val = at::_trilinear(i1, i2, i3_fw_grad, expand1, expand2, sumdim, expand3);
+    if (out_fw_grad.defined()) {
+      out_fw_grad = out_fw_grad + val;
+    } else {
+      out_fw_grad = val;
+    }
+  }
+
+  return out_fw_grad;
+}
+
+Tensor prelu_forward(const at::Tensor& self_fw_grad, const at::Tensor& weight_fw_grad, const at::Tensor& self,
+                     const at::Tensor& weight) {
+  Tensor grad_pos;
+  if (self_fw_grad.defined()) {
+    grad_pos = self_fw_grad;
+  } else {
+    grad_pos = at::zeros_like(self);
+  }
+
+  Tensor grad_neg;
+  if (self_fw_grad.defined()) {
+    grad_neg = self_fw_grad * weight;
+  } 
+  if (weight_fw_grad.defined()) {
+    auto val = self * weight_fw_grad;
+    if (grad_neg.defined()) {
+      grad_neg = grad_neg + val;
+    } else {
+      grad_neg = val;
+    }
+  }
+
+  if (grad_neg.defined()) {
+    grad_neg = at::zeros_like(self);
+  }
+
+
+  return at::where(at::ge(self, 0), grad_pos, grad_neg);
+}
+
 
 } // namespace details
 } // namespace generated
