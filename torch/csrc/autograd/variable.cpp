@@ -7,10 +7,12 @@
 #include <torch/csrc/autograd/functions/accumulate_grad.h>
 #include <torch/csrc/autograd/functions/tensor.h>
 #include <torch/csrc/autograd/generated/Functions.h>
+#include <torch/csrc/Exceptions.h>
 
 #include <ATen/core/VariableHooksInterface.h>
 
 #include <ATen/ATen.h>
+#include <ATen/MemoryOverlap.h>
 #include <c10/util/Exception.h>
 
 #include <list>
@@ -488,6 +490,135 @@ void handle_view_on_rebase(DifferentiableViewMeta* diff_view_meta, bool indirect
     // Note that if a Tensor is modified inplace from two threads at the same time, this is not thread safe and can warn
     // multiple time. This is ok as it should be a rare event.
     diff_view_meta->creation_meta = CreationMeta::DEFAULT;
+  }
+}
+
+// [Forward Grad View]
+// Note that the code below relies on view op to generate tangent that are a view of the
+// input's tangent. And for inplace to modify the input's tangent inplace.
+
+// In some cases, the generated forward grad won't have the same layout and view/inplace
+// ops might raise errors. We are happy with this and should provide tools to work around
+// all such issues.
+
+namespace {
+  // Check if two Tensor have the same storage offset, sizes and strides
+  bool has_same_meta(const Variable& base, const Variable& other) {
+    if (!base.defined() || !other.defined()) {
+      return false;
+    }
+    if (base.storage_offset() != other.storage_offset()) {
+      return false;
+    }
+    if (base.dim() != other.dim()) {
+      return false;
+    }
+    for (size_t i=0; i<base.dim(); ++i) {
+      if (base.sizes()[i] != other.sizes()[i]) {
+        return false;
+      }
+      if (base.strides()[i] != other.strides()[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Tensor new_with_same_meta(const Variable& base) {
+    // We need to create a storage of the same size to be able to have the same
+    // viewing behavior in all cases
+    // Explicit type here to appease Windows build
+    int64_t nelement_in_storage = base.storage().nbytes() / base.itemsize();
+    auto new_tensor = at::zeros({nelement_in_storage}, base.options());
+    auto res = new_tensor.as_strided(base.sizes(), base.strides(), base.storage_offset());
+    return res;
+  }
+} // anonymous namespace
+
+// This function is will ensure that the fw_grad_ has the same content as self and will
+// respect the [Forward Grad Layout] discussed above.
+void AutogradMeta::set_fw_grad(Variable& new_grad, const Variable& self, uint64_t level, bool is_inplace_op) {
+  if (fw_grad_->contains(level)) {
+    // Setting the forward grad again is only allowed if it is a no-op.
+    // We do allow this case to simplify writing codegen for inplace ops.
+    TORCH_INTERNAL_ASSERT(new_grad.defined(), "Cannot set a forward grad to an undefined Tensor. Use fw_primal(level) "
+                          "to get a new Tensor with this forward grad not set.");
+
+    TORCH_INTERNAL_ASSERT(is_inplace_op, "Only inplace operations can re-set the forward grad of a Tensor that "
+                          "already has one.");
+
+    TORCH_INTERNAL_ASSERT(fw_grad_->value(level).is_same(new_grad), "Cannot set a value of a forward grad if it "
+                          "already exists. Inplace operations should modify it inplace.");
+  } else {
+    // For inplace ops on a Tensor that does not already have a forward grad and is a view, we propagate
+    // the tangent to the base and ensure that the new_grad is a view of that base's tangent.
+    if (is_inplace_op && is_view_) {
+      auto this_view_meta = static_cast<DifferentiableViewMeta*>(this);
+      auto& base = this_view_meta->base_;
+
+      if (!base.fw_grad(level).defined()) {
+        // Enforce same meta here to make sure that the view op below is always valid
+        Tensor new_base_fw_grad;
+        if (has_same_meta(new_grad, base)) {
+          // TODO extend this special case to when the underlying storage of new_grad
+          // can be re-used. 
+          new_base_fw_grad = new_grad;
+        } else {
+
+          new_base_fw_grad = new_with_same_meta(base);
+
+          // Update new_grad to be a view of the base
+          Tensor new_fw_grad_value;
+          if (this_view_meta->has_view_fn()) {
+            new_fw_grad_value = this_view_meta->view_fn()(new_base_fw_grad);
+          } else {
+            new_fw_grad_value = new_base_fw_grad.as_strided(self.sizes(), self.strides(), self.storage_offset());
+          }
+
+          new_fw_grad_value.copy_(new_grad);
+          new_grad = new_fw_grad_value;
+        }
+
+        base.set_fw_grad(new_base_fw_grad, level, /* is_inplace_op */ false);
+      }
+
+    }
+
+    if (!has_same_meta(new_grad, self)) {
+      Tensor new_grad_with_meta = new_with_same_meta(self);
+      new_grad_with_meta.copy_(new_grad);
+      new_grad = new_grad_with_meta;
+    }
+
+    fw_grad_->set_value(new_grad, level);
+  }
+}
+
+const Variable& AutogradMeta::fw_grad(uint64_t level, const Variable& self) const {
+  const auto& val = fw_grad_->value(level);
+  if (!val.defined() && is_view_) {
+    // For view that don't have a forward grad, check if their base has one that
+    // has been defined by an inplace operation.
+    // See [Forward Grad View] for more details.
+    const auto this_view_meta = static_cast<const DifferentiableViewMeta*>(this);
+    const auto& base = this_view_meta->base_;
+
+    const auto& base_val = base.fw_grad(level);
+    if (base_val.defined()) {
+      Variable new_val;
+      if (this_view_meta->has_view_fn()) {
+        new_val = this_view_meta->view_fn()(base_val);
+      } else {
+        new_val = base_val.as_strided(self.sizes(), self.strides(), self.storage_offset());
+      }
+
+      fw_grad_->set_value(new_val, level);
+      return fw_grad_->value(level);
+    } else {
+      return val;
+    }
+  } else {
+    return val;
   }
 }
 

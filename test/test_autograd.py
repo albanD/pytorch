@@ -35,6 +35,7 @@ from torch.testing._internal.common_utils import (TEST_MKL, TEST_WITH_ROCM, Test
                                                   IS_WINDOWS, IS_MACOS, CudaMemoryLeakCheck)
 from torch.autograd import Variable, Function, detect_anomaly
 from torch.autograd.function import InplaceFunction
+from torch.autograd import forward_ad as fwAD
 from torch.testing import randn_like
 from torch.testing._internal.common_methods_invocations import (method_tests,
                                                                 create_input, unpack_variables,
@@ -3452,7 +3453,9 @@ class TestAutograd(TestCase):
             def closure(x):
                 if prepro_fn is not None:
                     x = prepro_fn(x)
-                return x.as_strided(size, strides, offset)
+                out = x.as_strided(size, strides, offset)
+                return out
+                # return x.as_strided(size, strides, offset)
 
             gradcheck(closure, [x])
             gradgradcheck(closure, [x])
@@ -3947,11 +3950,11 @@ class TestAutograd(TestCase):
 
     def test_gradcheck_sparse_input(self):
         def fn(sparse):
-            return torch.sparse.sum(sparse)
+            return torch.sparse.sum(sparse.clone())
 
-        gradcheck(fn, torch.rand(10).to_sparse().requires_grad_(True), check_sparse_nnz=True)
+        gradcheck(fn, torch.rand(10).to_sparse().requires_grad_(True), check_sparse_nnz=True, check_forward=False)
         with self.assertRaisesRegex(RuntimeError, 'gradcheck expects all tensor inputs are dense'):
-            gradcheck(fn, torch.rand(10).to_sparse().requires_grad_(True), check_sparse_nnz=False)
+            gradcheck(fn, torch.rand(10).to_sparse().requires_grad_(True), check_sparse_nnz=False, check_forward=False)
 
     def test_gradcheck_nondeterministic(self):
         class NonDetFunc(Function):
@@ -5518,7 +5521,10 @@ class TestAutogradFunctional(TestCase):
 
     def test_jvp_err_check_strict(self):
         def foo(a):
-            return a.detach()
+            # break both forward and backward mode links
+            out = a.detach()
+            out, _= fwAD.unpack_dual(out)
+            return out
 
         def bar(a):
             # Make a non-leaf Tensor that requires_grad but that is not connected to the input
@@ -5526,7 +5532,7 @@ class TestAutogradFunctional(TestCase):
 
         inp = torch.rand(4)
         v = torch.rand(4)
-        with self.assertRaisesRegex(RuntimeError, "Output 0 of the user-provided function does not require gradients."):
+        with self.assertRaisesRegex(RuntimeError, "The output of the user-provided function is independent of input 0"):
             res = autogradF.jvp(foo, inp, v, strict=True)
         res = autogradF.jvp(foo, inp, v, strict=False)
         self._assert_same_struct(res[1], res[0])
@@ -5616,8 +5622,15 @@ class TestAutogradFunctional(TestCase):
         self.assertIsNotNone(res[0].grad_fn)
         self.assertIsNotNone(res[1].grad_fn)
 
-        gradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True), (inputs, v))
-        gradgradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True), (inputs, v))
+        res = autogradF.jvp(reducer, inputs, v, create_graph=True, fw_mode=False)
+        self._assert_same_struct(res[1], res[0])
+        self.assertIsNotNone(res[0].grad_fn)
+        self.assertIsNotNone(res[1].grad_fn)
+
+        gradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True), (inputs, v), check_forward=False)
+        gradgradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True), (inputs, v), check_forward=False)
+        gradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True, fw_mode=False), (inputs, v))
+        gradgradcheck(lambda inp, v: autogradF.jvp(reducer, inp, v, create_graph=True, fw_mode=False), (inputs, v))
 
         def adder(x, y):
             return 2 * x + 3 * y, x * y
@@ -5625,18 +5638,26 @@ class TestAutogradFunctional(TestCase):
         inputs = (torch.rand(2, requires_grad=True), torch.rand(2, requires_grad=True))
         v = (torch.tensor([1., 0.], requires_grad=True), torch.tensor([1., 0.], requires_grad=True))
 
-        gradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True)[1], inputs + v)
-        gradgradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True)[1], inputs + v)
+        gradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True)[1], inputs + v, check_forward=False)
+        gradgradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True)[1], inputs + v, check_forward=False)
+        gradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True, fw_mode=False)[1], inputs + v)
+        gradgradcheck(lambda *args: autogradF.jvp(adder, args[:2], args[2:], create_graph=True, fw_mode=False)[1], inputs + v)
+
+        fw_mode = True
 
         def foo(*args):
             x, y = args[:2]
             v = args[2:]
 
             x = x.cos()
-            val, grad = autogradF.jvp(adder, (x, y), v, create_graph=True)
+            val, grad = autogradF.jvp(adder, (x, y), v, create_graph=True, fw_mode=fw_mode)
 
             return val[0].exp() + val[1].exp() + grad[0].exp() + grad[1].exp() + x.exp() + y.exp()
 
+        gradcheck(foo, inputs + v, check_forward=False)
+        gradgradcheck(foo, inputs + v, check_forward=False)
+
+        fw_mode = False
         gradcheck(foo, inputs + v)
         gradgradcheck(foo, inputs + v)
 
@@ -6260,6 +6281,162 @@ class TestAutogradFunctional(TestCase):
 
         self.assertEqual(hvp, torch.mm(hes, v.unsqueeze(1)).squeeze(1))
         self.assertEqual(vhp, torch.mm(v.unsqueeze(0), hes).squeeze(0))
+
+
+class TestAutogradForwardMode(TestCase):
+    def tearDown(self):
+        # Ensure that a failing test won't make others fail
+        while fwAD._current_level >= 0:
+            fwAD.exit_dual_level()
+
+        super().tearDown()
+
+    def test_level_and_packing(self):
+        foo = torch.rand(2)
+        bar = torch.rand(2)
+
+        level = fwAD.enter_dual_level()
+        # For now only level 0 exists
+        self.assertEqual(level, 0)
+
+        # Check that packing works
+        baz = fwAD.make_dual(foo, bar, level=level)
+        baz_primal, baz_tangent = fwAD.unpack_dual(baz, level=level)
+        self.assertEqual(baz_primal, foo)
+        self.assertEqual(baz_tangent, bar)
+
+        # Check that packing does not change the input
+        foo_primal, foo_tangent = fwAD.unpack_dual(foo, level=level)
+        self.assertEqual(foo_primal, foo)
+        self.assertIsNone(foo_tangent)
+
+        # Check that default level works
+        baz = fwAD.make_dual(foo, bar)
+        baz_primal, baz_tangent = fwAD.unpack_dual(baz)
+        self.assertEqual(baz_primal, foo)
+        self.assertEqual(baz_tangent, bar)
+
+        # Check that nesting is properly disabled
+        with self.assertRaisesRegex(RuntimeError, "Nested forward mode AD is not supported at the moment"):
+            nest_level = fwAD.enter_dual_level()
+
+        fwAD.exit_dual_level()
+
+    def test_level_context_manager(self):
+        foo = torch.rand(2)
+        bar = torch.rand(2)
+
+        with fwAD.dual_level():
+            baz = fwAD.make_dual(foo, bar)
+            baz_primal, baz_tangent = fwAD.unpack_dual(baz)
+        self.assertEqual(baz_primal, foo)
+        self.assertEqual(baz_tangent, bar)
+
+        baz_primal, baz_tangent = fwAD.unpack_dual(baz)
+        self.assertEqual(baz_primal, foo)
+        self.assertEqual(baz_tangent, None)
+
+    def test_print(self):
+        with fwAD.dual_level() as level:
+            a = torch.rand(3)
+            self.assertFalse("tangent=" in str(a))
+
+            b = fwAD.make_dual(a, torch.rand(3))
+            self.assertFalse("tangent=" in str(a))
+            self.assertTrue("tangent=" in str(b))
+
+            b_primal, b_tangent = fwAD.unpack_dual(b)
+            self.assertFalse("tangent=" in str(b_primal))
+            self.assertFalse("tangent=" in str(b_tangent))
+
+    def test_grad_cleanup(self):
+        foo = torch.rand(2)
+        bar = torch.rand(2)
+        baz = torch.rand(2)
+
+        with fwAD.dual_level():
+            dual = fwAD.make_dual(foo, bar)
+            self.assertTrue("tangent=" in str(dual))
+
+        self.assertFalse("tangent=" in str(dual))
+
+        with fwAD.dual_level():
+            self.assertFalse("tangent=" in str(dual))
+            new_dual = fwAD.make_dual(foo, baz)
+
+            dual_primal, dual_tangent = fwAD.unpack_dual(dual)
+            new_dual_primal, new_dual_tangent = fwAD.unpack_dual(new_dual)
+            self.assertEqual(dual_primal, new_dual_primal)
+            self.assertIsNone(dual_tangent)
+            self.assertEqual(new_dual_tangent, baz)
+
+    def test_make_unpack_dual(self):
+        foo = torch.rand(2)
+        bar = torch.rand(2)
+
+        with fwAD.dual_level():
+            dual = fwAD.make_dual(foo, bar)
+
+            # dual should only be an alias to foo
+            self.assertEqual(dual.storage().data_ptr(), foo.storage().data_ptr())
+
+            # Make sure we don't break inplace checks for backward mode
+            self.assertEqual(foo._version, dual._version)
+            foo.add_(1)
+            self.assertEqual(foo._version, dual._version)
+
+            # Unpacking should only create aliases as well
+            dual_primal, dual_tangent = fwAD.unpack_dual(dual)
+            self.assertEqual(dual_primal.storage().data_ptr(), foo.storage().data_ptr())
+            self.assertEqual(dual_tangent.storage().data_ptr(), bar.storage().data_ptr())
+
+            # Make sure we don't break inplace checks for backward mode
+            self.assertEqual(foo._version, dual_primal._version)
+            foo.add_(1)
+            self.assertEqual(foo._version, dual_primal._version)
+            self.assertEqual(bar._version, dual_tangent._version)
+            bar.add_(1)
+            self.assertEqual(bar._version, dual_tangent._version)
+
+    def test_backward_mode(self):
+        foo = torch.rand(2, requires_grad=True)
+        bar = torch.rand(2, requires_grad=True)
+
+        with fwAD.dual_level():
+            dual = fwAD.make_dual(foo, bar)
+            p, t = fwAD.unpack_dual(dual)
+
+            gfoo, gbar = torch.autograd.grad(p.sum(), (foo, bar), retain_graph=True, allow_unused=True)
+            self.assertEqual(gfoo, torch.ones_like(foo))
+            self.assertIsNone(gbar)
+
+            gfoo, gbar = torch.autograd.grad(t.sum(), (foo, bar), retain_graph=True, allow_unused=True)
+            self.assertIsNone(gfoo)
+            self.assertEqual(gbar, torch.ones_like(bar))
+
+    def test_view(self):
+        foo = torch.rand(2)
+        bar = torch.ones(2)
+
+        with fwAD.dual_level():
+            dual = fwAD.make_dual(foo, bar)
+            # We don't modify foo when making the dual Tensor
+            self.assertIsNone(fwAD.unpack_dual(foo)[1])
+
+            self.assertTrue(fwAD.unpack_dual(dual)[1].eq(1).all())
+
+            # Out of place op
+            double_dual = dual * 2
+            self.assertTrue(fwAD.unpack_dual(double_dual)[1].eq(2).all())
+            self.assertIsNone(fwAD.unpack_dual(foo)[1])  # foo is not modified
+
+            # View op
+            view_dual = dual.select(0, 0)
+            self.assertTrue(fwAD.unpack_dual(view_dual)[1].eq(1).all())
+            self.assertIsNone(fwAD.unpack_dual(foo)[1])
+            # We generate proper view
+            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(view_dual)[1].storage().data_ptr())
+            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), bar.storage().data_ptr())
 
 
 # Generic device type autograd tests.
