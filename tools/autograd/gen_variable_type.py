@@ -22,7 +22,6 @@
 #     which will in turn dispatch back to VariableType for its
 #     differentiable subcomponents.
 #
-
 from .utils import CodeTemplate, nested_dict, write
 from .gen_autograd import VIEW_FUNCTIONS, VIEW_FUNCTIONS_WITH_METADATA_CHANGE, \
     MULTI_OUTPUT_SAFE_FUNCTIONS, RETURNS_VIEWS_OF_INPUT
@@ -424,6 +423,7 @@ def emit_body(declaration):
     arguments = declaration['arguments']
     returns = declaration['returns']
     func = declaration['derivative']
+    fw_derivatives = declaration['autograd_fw_info']
     name = declaration['name']
     inplace = declaration['inplace']
     is_out_fn = name.endswith('_out')
@@ -474,9 +474,11 @@ def emit_body(declaration):
     else:
         differentiable_outputs = candidate_differentiable_outputs
 
-    requires_derivative = (
-        base_name not in DONT_REQUIRE_DERIVATIVE and name not in DONT_REQUIRE_DERIVATIVE and
-        len(differentiable_inputs) > 0 and len(differentiable_outputs) > 0)
+    undifferentiable = (base_name in DONT_REQUIRE_DERIVATIVE) or (name in DONT_REQUIRE_DERIVATIVE)
+
+    requires_derivative = (not undifferentiable) and (len(differentiable_inputs) > 0) and (len(differentiable_outputs) > 0)
+
+    requires_fw_derivatives = not undifferentiable and len(fw_derivatives) > 0
 
     if func is not None and not requires_derivative:
         raise RuntimeError('ERROR: derivative ignored for {} -- specified an autograd function without derivative'
@@ -808,6 +810,62 @@ def emit_body(declaration):
         if not modifies_arguments:
             return []
         return ['increment_version({});'.format(arg['name']) for arg in returns]
+
+    def emit_fw_derivatives():
+        content = []
+        for derivative in fw_derivatives:
+            res = derivative['out_arg']
+
+            if_stmt = " || ".join([FW_DERIVATIVE_CHECK_TEMPLATE.substitute(req_inp=inp['name'])
+                                   for inp in differentiable_inputs if inp['name'] in derivative['required_inputs']])
+            if not if_stmt:
+                # Handle functions like stack
+                # For these, we don't unpack anything and always call the user function
+                assert len(differentiable_inputs) == 1
+                assert differentiable_inputs[0]['dynamic_type'] == 'TensorList'
+                if_stmt = "true"
+            fw_grad_defined = ""
+            for inp in differentiable_inputs:
+                if inp['name'] in derivative['required_inputs']:
+                    if inp['type'] == 'Tensor &':
+                        warnings.warn('The formula for "{}" uses the original value of {} that is being '
+                                      'modified inplace. This would lead to wrong gradients.'.format(name, inp['name']))
+                        return [emit_forbid_fw_derivatives(is_inplace=True), ]
+                    fw_grad_defined += FW_DERIVATIVE_DEFINED_GRAD_TEMPLATE.substitute(inp=inp['name'])
+                if inp['name'] in derivative['required_inputs_primal']:
+                    fw_grad_defined += FW_DERIVATIVE_DEFINED_PRIMAL_TEMPLATE.substitute(inp=inp['name'])
+
+            if derivative['out_type'] == "Tensor":
+                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR.substitute(out_arg=res)
+            elif derivative['out_type'] == "TensorList":
+                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR_LIST.substitute(out_arg=res)
+            else:
+                raise RuntimeError("Unsupported output type for forward derivative")
+            # View ops create fw_grad that already is a view of the base's fw_grad so just use that
+            content.append(FW_DERIVATIVE_TEMPLATE.substitute(if_stmt=if_stmt, formula=derivative['formula'], out_arg=res,
+                                                             fw_grad_defined=fw_grad_defined, fw_grad_setter=fw_grad_setter))
+        return content
+
+    def emit_forbid_fw_derivatives(is_inplace=False):
+        def get_msg():
+            if is_inplace:
+                msg = name + " (because it is inplace)"
+            else:
+                msg = name
+            return msg
+        res = ""
+        to_check = []
+        for inp in differentiable_inputs:
+            if inp["dynamic_type"] == "Tensor":
+                to_check.append(FW_DERIVATIVE_CHECK_TEMPLATE.substitute(req_inp=inp["name"]))
+            if inp["dynamic_type"] == "TensorList":
+                cond = FW_DERIVATIVE_CHECK_TEMPLATE.substitute(req_inp="_t")
+                res += FW_DERIVATIVE_FORBID_LIST_TEMPLATE.substitute(arg=inp["name"], cond=cond, msg=get_msg())
+
+        if len(to_check) > 0:
+            cond = " || ".join(to_check)
+            res += FW_DERIVATIVE_FORBID_TEMPLATE.substitute(cond=cond, msg=get_msg())
+        return res
 
     env = {}
     combined = nested_dict(env, declaration)

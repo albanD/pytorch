@@ -105,6 +105,11 @@
   manual_kernel_registration: True
   variants: method
 
+- func: fw_primal(Tensor(a) self, int level) -> Tensor(a)
+  use_c10_dispatcher: full
+  manual_kernel_registration: True
+  variants: method
+
 - func: rename_(Tensor(a!) self, Dimname[]? names) -> Tensor(a!)
   variants: method
 

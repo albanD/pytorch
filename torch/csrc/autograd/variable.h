@@ -6,6 +6,7 @@
 #include <torch/csrc/autograd/edge.h>
 #include <torch/csrc/autograd/function_hook.h>
 #include <torch/csrc/autograd/cpp_hook.h>
+#include <torch/csrc/autograd/forward_grad.h>
 
 #include <ATen/ATen.h>
 #include <ATen/NamedTensorUtils.h>
@@ -190,6 +191,7 @@ struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
   std::string name_;
 
   Variable grad_;
+  std::shared_ptr<ForwardGrad> fw_grad_;
   std::shared_ptr<Node> grad_fn_;
   std::weak_ptr<Node> grad_accumulator_;
 
@@ -238,12 +240,29 @@ struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
     return grad_;
   }
 
+  const Variable& fw_grad(uint64_t level) const override {
+    return fw_grad_->value(level);
+  }
+
+  void set_fw_grad(Variable& new_grad, const Variable& self, uint64_t level) override {
+    _set_fw_grad(new_grad, self, level, /* handle_view */ true);
+  }
+
+  // This special API must only be used by "forward_ad::make_dual()" to ensure it does not
+  // change the given primal
+  void _set_fw_grad(Variable& new_grad, const Variable& self, uint64_t level, bool handle_view);
+
+  void reset_fw_grad(uint64_t level) override {
+    fw_grad_->reset(level);
+  }
+
   AutogradMeta(at::TensorImpl* self_impl = nullptr, bool requires_grad = false, Edge gradient_edge = Edge() ) {
     grad_fn_ = std::move(gradient_edge.function);
     requires_grad_ = false;
     retains_grad_ = false;
     is_view_ = false;
     output_nr_ = gradient_edge.input_nr;
+    fw_grad_ = std::make_shared<ForwardGrad>();
 
     // set_requires_grad also checks error conditions.
     if (requires_grad) {
