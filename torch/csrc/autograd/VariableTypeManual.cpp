@@ -223,7 +223,8 @@ Tensor fw_primal(const Tensor & self, int64_t level) {
       return input_base.view(size_vec);
     };
   }
-  auto result = as_view(/* base */ self, /* output */ tmp, /* is_differentiable */ true, /* view_func */ func, /* creation_meta */ GradMode::is_enabled() ? CreationMeta::DEFAULT: CreationMeta::NO_GRAD_MODE);
+  // Non differentiable view?
+  auto result = as_view(/* base */ self, /* output */ tmp, /* is_differentiable */ false, /* view_func */ func, /* creation_meta */ CreationMeta::DEFAULT);
   #ifndef NDEBUG
   if (self__storage_saved.has_value())
     AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
@@ -279,7 +280,7 @@ Tensor & copy_(Tensor & self, const Tensor & src, bool non_blocking) {
     } else {
       new_fw_grad = src_fw_grad;
     }
-    self.set_fw_grad(new_fw_grad, /* level */ 0);
+    self.set_fw_grad(new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
   }
 
   return self;
@@ -334,7 +335,7 @@ Tensor detach(const Tensor & self) {
   // detach only backward gradients
   if (self.fw_grad(/* level */ 0).defined()) {
     auto new_fw_grad = self.fw_grad(/* level */ 0);
-    result.set_fw_grad(new_fw_grad, /* level */ 0);
+    result.set_fw_grad(new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
   }
 
   return result;

@@ -6408,9 +6408,10 @@ class TestAutogradForwardMode(TestCase):
 
     def test_view(self):
         foo = torch.rand(2)
+        bar = torch.ones(2)
 
         with fwAD.dual_level():
-            dual = fwAD.make_dual(foo, torch.ones_like(foo))
+            dual = fwAD.make_dual(foo, bar)
             # We don't modify foo when making the dual Tensor
             self.assertIsNone(fwAD.unpack_dual(foo)[1])
 
@@ -6424,34 +6425,11 @@ class TestAutogradForwardMode(TestCase):
             # View op
             view_dual = dual.select(0, 0)
             self.assertTrue(fwAD.unpack_dual(view_dual)[1].eq(1).all())
-            self.assertIsNotNone(fwAD.unpack_dual(foo)[1]) # This should be None?
-            # But the forward grad of dual is not properly a view of its base's fw grad
-            self.assertNotEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(view_dual)[1].storage().data_ptr())
-            self.assertNotEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(foo)[1].storage().data_ptr())
-
-        # Alternative proposal: `make_dual` gives `handle_view=true` when setting the gradient.
-        # This would make the following asserts correct
-        foo = torch.rand(2)
-
-        with fwAD.dual_level():
             self.assertIsNone(fwAD.unpack_dual(foo)[1])
-            dual = fwAD.make_dual(foo, torch.ones_like(foo))
-
-            # Because dual is a view of foo and setting the forward grad of dual sets the forward
-            # grad on its base which is foo.
-            self.assertIsNotNone(fwAD.unpack_dual(foo)[1])
-            # So make_dual actually mutates foo...
-
-            # View ops do work as they update the _base which is foo here
-            view_dual = dual.select(0, 0)
-            self.assertTrue(fwAD.unpack_dual(view_dual)[1].eq(1).all())
-            self.assertIsNotNone(fwAD.unpack_dual(foo)[1]) # This is still not None
-
-            # But now the forward grads are all proper view !
+            # We generate proper view
             self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(view_dual)[1].storage().data_ptr())
-            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(foo)[1].storage().data_ptr())
+            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), bar.storage().data_ptr())
 
- 
 
 # Generic device type autograd tests.
 class TestAutogradDeviceType(TestCase):

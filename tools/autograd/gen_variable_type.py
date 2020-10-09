@@ -262,6 +262,51 @@ ${statements}
 #endif
 """)
 
+FW_DERIVATIVE_CHECK_TEMPLATE = CodeTemplate("""\
+isFwGradDefined(${req_inp})\
+""")
+
+FW_DERIVATIVE_DEFINED_GRAD_TEMPLATE = CodeTemplate("""\
+auto ${inp}_fw_grad = toLegacyFwGrad(${inp});
+""")
+
+FW_DERIVATIVE_DEFINED_PRIMAL_TEMPLATE = CodeTemplate("""\
+auto ${inp}_primal = toLegacyPrimal(${inp});
+""")
+
+FW_DERIVATIVE_SETTER_TENSOR = CodeTemplate("""\
+if (${out_arg}_new_fw_grad.defined()) {
+  ${out_arg}.set_fw_grad(${out_arg}_new_fw_grad, /* level */ 0, /* is_inplace_op */ ${is_inplace});
+}
+""")
+
+FW_DERIVATIVE_SETTER_TENSOR_LIST = CodeTemplate("""\
+TORCH_INTERNAL_ASSERT(${out_arg}.size() == ${out_arg}_new_fw_grad.size());
+for (auto i=0; i<${out_arg}.size(); ++i) {
+  if (${out_arg}_new_fw_grad[i].defined()) {
+    ${out_arg}[i].set_fw_grad(${out_arg}_new_fw_grad[i], /* level */ 0, /* is_inplace_op */ ${is_inplace});
+  }
+}
+""")
+
+FW_DERIVATIVE_TEMPLATE = CodeTemplate("""\
+if (${if_stmt}) {
+    ${fw_grad_defined}
+    auto ${out_arg}_new_fw_grad = ${formula};
+    ${fw_grad_setter}
+}
+""")
+
+FW_DERIVATIVE_FORBID_TEMPLATE = CodeTemplate("""\
+TORCH_CHECK(!(${cond}), "Trying to use forward prop with ${msg} that does not support it.");
+""")
+
+FW_DERIVATIVE_FORBID_LIST_TEMPLATE = CodeTemplate("""\
+for (auto& _t: ${arg}) {
+    TORCH_CHECK(!(${cond}), "Trying to use forward prop with ${msg} that does not support it.");
+}
+""")
+
 FACTORY_FUNCTION_NAMES = None
 
 # TODO The maybe_unwrap_optional_tensors is only needed because our at::native::xxx functions
@@ -835,10 +880,15 @@ def emit_body(declaration):
                 if inp['name'] in derivative['required_inputs_primal']:
                     fw_grad_defined += FW_DERIVATIVE_DEFINED_PRIMAL_TEMPLATE.substitute(inp=inp['name'])
 
+            if inplace:
+                is_inplace_str = "true"
+            else:
+                is_inplace_str = "false"
+
             if derivative['out_type'] == "Tensor":
-                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR.substitute(out_arg=res)
+                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR.substitute(out_arg=res, is_inplace=is_inplace_str)
             elif derivative['out_type'] == "TensorList":
-                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR_LIST.substitute(out_arg=res)
+                fw_grad_setter = FW_DERIVATIVE_SETTER_TENSOR_LIST.substitute(out_arg=res, is_inplace=is_inplace_str)
             else:
                 raise RuntimeError("Unsupported output type for forward derivative")
             # View ops create fw_grad that already is a view of the base's fw_grad so just use that

@@ -104,7 +104,7 @@ Variable SavedVariable::unpack(std::shared_ptr<Node> saved_for) const {
   if (fw_grad_.defined()) {
     // Because we can't steal fw_grad_ directly
     Variable new_fw_grad = fw_grad_;
-    var.set_fw_grad(new_fw_grad, /* level */ 0);
+    var.set_fw_grad(new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
   }
 
   return var;

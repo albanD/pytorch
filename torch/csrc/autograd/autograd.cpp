@@ -171,9 +171,7 @@ at::Tensor make_dual(const at::Tensor& primal, at::Tensor tangent, uint64_t leve
               "already has a forward gradient at the same level ", level, " is not supported.");
 
   auto dual_tensor = primal.view(primal.sizes());
-  // This is similar to dual_tensor.set_fw_grad(tangent, level); but does not update primal's forward grad
-  auto meta = torch::autograd::impl::materialize_autograd_meta(dual_tensor);
-  meta->_set_fw_grad(tangent, dual_tensor, level, /* handle_view */ false);
+  dual_tensor.set_fw_grad(tangent, level, /* is_inplace_op */ false);
   return dual_tensor;
 }
 

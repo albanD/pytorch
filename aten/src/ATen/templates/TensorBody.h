@@ -583,19 +583,14 @@ class CAFFE2_API Tensor {
 
   /// This function returns the forward gradient for this Tensor at the given level.
   const Tensor& fw_grad(uint64_t level) const {
-    return impl_->fw_grad(level);
+    return impl_->fw_grad(level, *this);
   }
 
   /// This function can be used to set the value of the forward grad.
   /// Note that the given value might not be used directly if this Tensor already
   /// has a forward grad or if it is a view of another Tensor.
-  void set_fw_grad(Tensor& new_grad, uint64_t level) {
-    impl_->set_fw_grad(new_grad, *this, level);
-  }
-
-  /// This function can be used to reset the forward grad to be empty (undefined Tensor).
-  void reset_fw_grad(uint64_t level) {
-    impl_->reset_fw_grad(level);
+  void set_fw_grad(Tensor& new_grad, uint64_t level, bool is_inplace_op) {
+    impl_->set_fw_grad(new_grad, *this, level, is_inplace_op);
   }
 
 

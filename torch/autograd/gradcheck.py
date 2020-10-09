@@ -219,9 +219,7 @@ def get_analytical_jacobian_fw(fn, input, output):
         for inp in input:
             if torch.is_tensor(inp) and inp.requires_grad:
                 if inp.layout == torch._mkldnn:
-                    # TODO(albanD): make this a proper error
-                    warnings.warn('MKLDNN inputs are not supported for forward gradcheck.')
-                    return None
+                    raise ValueError('MKLDNN inputs are not supported for forward gradcheck.')
 
                 inp = fwAD.make_dual(inp, torch.zeros_like(inp))
                 fw_grads.append(fwAD.unpack_dual(inp)[1])
