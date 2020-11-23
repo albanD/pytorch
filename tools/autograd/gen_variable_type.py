@@ -855,9 +855,8 @@ def emit_body(declaration):
             for inp in differentiable_inputs:
                 if inp['name'] in derivative.required_inputs_fw_grad:
                     if inp['type'] == 'Tensor &':
-                        warnings.warn('The formula for "{}" uses the original value of {} that is being '
-                                      'modified inplace. This would lead to wrong gradients.'.format(name, inp['name']))
-                        return [emit_forbid_fw_derivatives(is_inplace=True), ]
+                        warnings.warn('The formula for "{}" might be using the original value of {} that is being '
+                                      'modified inplace. This can lead to wrong gradients.'.format(name, inp['name']))
                     fw_grad_defined += FW_DERIVATIVE_DEFINED_GRAD_TEMPLATE.substitute(inp=inp['name'])
                 if inp['name'] in derivative.required_inputs_primal:
                     fw_grad_defined += FW_DERIVATIVE_DEFINED_PRIMAL_TEMPLATE.substitute(inp=inp['name'])

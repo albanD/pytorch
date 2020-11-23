@@ -332,9 +332,9 @@ Tensor detach(const Tensor & self) {
   auto result = make_variable_non_differentiable_view(self, self, /*allow_tensor_metadata_change=*/false);
   namedinference::propagate_names(result, self);
 
-  // detach only backward gradients
+  // detach only backward gradients for both primal and tangent
   if (self.fw_grad(/* level */ 0).defined()) {
-    auto new_fw_grad = self.fw_grad(/* level */ 0);
+    auto new_fw_grad = self.fw_grad(/* level */ 0).detach();
     result.set_fw_grad(new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
   }
 

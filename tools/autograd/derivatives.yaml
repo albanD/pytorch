@@ -804,6 +804,11 @@
   other: mul_tensor_backward(grad, self, other.scalar_type())
   result: "self_fw_grad.defined()? (other_fw_grad.defined()? other_fw_grad * self + self_fw_grad * other : self_fw_grad * other) : (other_fw_grad.defined()? other_fw_grad * self : Tensor())"
 
+- name: mul_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
+  self: mul_tensor_backward(grad, other, self.scalar_type())
+  other: mul_tensor_backward(grad, self / other, other.scalar_type())
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other).add_(other_fw_grad * self / other) : self_fw_grad.mul_(other)) : (other_fw_grad.defined()? other_fw_grad * self / other : Tensor())"
+
 - name: mul.Scalar(Tensor self, Scalar other) -> Tensor
   self: mul_tensor_backward(grad, at::scalar_to_tensor(other), self.scalar_type())
   result: element_wise

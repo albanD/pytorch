@@ -535,7 +535,7 @@ namespace {
   }
 } // anonymous namespace
 
-// This function is will ensure that the fw_grad_ has the same content as self and will
+// This function is will ensure that the fw_grad_ has the same metadata as self and will
 // respect the [Forward Grad Layout] discussed above.
 void AutogradMeta::set_fw_grad(Variable& new_grad, const Variable& self, uint64_t level, bool is_inplace_op) {
   if (fw_grad_->contains(level)) {
@@ -564,7 +564,6 @@ void AutogradMeta::set_fw_grad(Variable& new_grad, const Variable& self, uint64_
           // can be re-used. 
           new_base_fw_grad = new_grad;
         } else {
-
           new_base_fw_grad = new_with_same_meta(base);
 
           // Update new_grad to be a view of the base

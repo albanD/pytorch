@@ -6372,7 +6372,7 @@ class TestAutogradForwardMode(TestCase):
 
     def test_make_unpack_dual(self):
         foo = torch.rand(2)
-        bar = torch.rand(2)
+        bar = torch.ones(2)
 
         with fwAD.dual_level():
             dual = fwAD.make_dual(foo, bar)
@@ -6398,11 +6398,22 @@ class TestAutogradForwardMode(TestCase):
             bar.add_(1)
             self.assertEqual(bar._version, dual_tangent._version)
 
+            # We don't modify foo when making the dual Tensor
+            dual = fwAD.make_dual(foo, bar)
+            self.assertIsNone(fwAD.unpack_dual(foo)[1])
+            self.assertTrue(fwAD.unpack_dual(dual)[1].eq(2).all())
+
+            # Out of place op
+            double_dual = dual * 2
+            self.assertTrue(fwAD.unpack_dual(double_dual)[1].eq(4).all())
+            self.assertIsNone(fwAD.unpack_dual(foo)[1])
+
     def test_backward_mode(self):
         foo = torch.rand(2, requires_grad=True)
         bar = torch.rand(2, requires_grad=True)
 
         with fwAD.dual_level():
+            # Check that backward gradients properly propagates through packing/unpacking
             dual = fwAD.make_dual(foo, bar)
             p, t = fwAD.unpack_dual(dual)
 
@@ -6414,30 +6425,91 @@ class TestAutogradForwardMode(TestCase):
             self.assertIsNone(gfoo)
             self.assertEqual(gbar, torch.ones_like(bar))
 
-    def test_view(self):
+            # Check that forward gradients are not impacted by detach
+            detached_dual = dual.detach()
+            out = detached_dual * 2
+            p, t = fwAD.unpack_dual(out)
+            self.assertFalse(p.requires_grad)
+            self.assertFalse(t.requires_grad)
+            self.assertEqual(p, foo * 2)
+            self.assertEqual(t, bar * 2)
+
+            # Check that forward gradients are not impacted by no_grad
+            with torch.no_grad():
+                out = dual * 3
+            p, t = fwAD.unpack_dual(out)
+            self.assertFalse(p.requires_grad)
+            self.assertFalse(t.requires_grad)
+            self.assertEqual(p, foo * 3)
+            self.assertEqual(t, bar * 3)
+
+
+    def test_view_inplace(self):
         foo = torch.rand(2)
         bar = torch.ones(2)
 
         with fwAD.dual_level():
-            dual = fwAD.make_dual(foo, bar)
-            # We don't modify foo when making the dual Tensor
+            # Note that in this test, we use "update" to mean computing the right tangent for the dual
+            # All the inplace operations here are expected to update the primal value of the Tensors but
+            # not always their tangents.
+
+            # Check that inplace ops do not update non-differentiable views
+            cloned_foo = foo.clone()
+            cloned_bar = bar.clone()
+            # Non differentiable view
+            dual = fwAD.make_dual(cloned_foo, cloned_bar)
+            dual *= 2
+            # Check that non differentiable view was not updated
             self.assertIsNone(fwAD.unpack_dual(foo)[1])
+            # Check that the computed result is correct
+            self.assertEqual(cloned_bar, bar * 2)
+            self.assertEqual(fwAD.unpack_dual(dual)[1], bar * 2)
+            self.assertEqual(cloned_foo, foo * 2)
+            self.assertEqual(fwAD.unpack_dual(dual)[0], foo * 2)
+            # Other non differentiable view
+            dual_primal, dual_tangent = fwAD.unpack_dual(dual)
+            self.assertIsNone(fwAD.unpack_dual(dual_primal)[1])
+            self.assertIsNone(fwAD.unpack_dual(dual_tangent)[1])
+            dual_primal *= 2
+            # Ensure dual's tangent did not change
+            self.assertEqual(fwAD.unpack_dual(dual)[0], foo * 4)
+            self.assertEqual(fwAD.unpack_dual(dual)[1], bar * 2)
+            dual_tangent *= 2
+            # Ensure dual's primal did not change
+            self.assertEqual(fwAD.unpack_dual(dual)[0], foo * 4)
+            self.assertEqual(fwAD.unpack_dual(dual)[1], bar * 4)
 
-            self.assertTrue(fwAD.unpack_dual(dual)[1].eq(1).all())
-
-            # Out of place op
-            double_dual = dual * 2
-            self.assertTrue(fwAD.unpack_dual(double_dual)[1].eq(2).all())
-            self.assertIsNone(fwAD.unpack_dual(foo)[1])  # foo is not modified
-
-            # View op
-            view_dual = dual.select(0, 0)
-            self.assertTrue(fwAD.unpack_dual(view_dual)[1].eq(1).all())
+            # Check that inplace ops do update differentiable view but stop at non differentiable ones
+            cloned_foo = foo.clone()
+            cloned_bar = bar.clone()
+            # A non differentiable view
+            dual = fwAD.make_dual(cloned_foo, cloned_bar)
+            # A differentiable view
+            view = dual.narrow(0, 0, 1)
+            view *= 2
+            # Check that non differentiable view was not updated
             self.assertIsNone(fwAD.unpack_dual(foo)[1])
-            # We generate proper view
-            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), fwAD.unpack_dual(view_dual)[1].storage().data_ptr())
-            self.assertEqual(fwAD.unpack_dual(dual)[1].storage().data_ptr(), bar.storage().data_ptr())
+            # Check that differentiable view was updated
+            self.assertEqual(fwAD.unpack_dual(dual)[1], torch.tensor([2., 1.]))
+            self.assertEqual(fwAD.unpack_dual(view)[1], torch.tensor([2.]))
 
+            # Check that we track differentiable view even for Tensors that are not dual
+            # Basic inplace should update baz
+            baz = torch.rand(2)
+            baz += dual
+            self.assertEqual(fwAD.unpack_dual(baz)[1], fwAD.unpack_dual(dual)[1])
+            # Updates on view should as well
+            baz = torch.rand(2)
+            baz[0] = dual[0]
+            self.assertEqual(fwAD.unpack_dual(baz)[1][0], fwAD.unpack_dual(dual)[1][0])
+            # Unused values get a gradient of 0
+            self.assertEqual(fwAD.unpack_dual(baz)[1][1], 0.)
+
+            # Check that backward non-differentiable views don't prevent gradient update
+            baz = torch.rand(2)
+            view = baz.detach()
+            view += dual
+            self.assertEqual(fwAD.unpack_dual(baz)[1], fwAD.unpack_dual(dual)[1])
 
 # Generic device type autograd tests.
 class TestAutogradDeviceType(TestCase):
