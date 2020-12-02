@@ -6443,6 +6443,16 @@ class TestAutogradForwardMode(TestCase):
             self.assertEqual(p, foo * 3)
             self.assertEqual(t, bar * 3)
 
+            # Check that forward gradients are not impacted by inplace detach
+            dual = dual.clone()
+            dual.detach_()
+            out = dual * 2
+            p, t = fwAD.unpack_dual(out)
+            self.assertFalse(p.requires_grad)
+            self.assertFalse(t.requires_grad)
+            self.assertEqual(p, foo * 2)
+            self.assertEqual(t, bar * 2)
+
 
     def test_view_inplace(self):
         foo = torch.rand(2)

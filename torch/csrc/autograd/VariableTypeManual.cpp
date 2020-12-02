@@ -223,8 +223,8 @@ Tensor fw_primal(const Tensor & self, int64_t level) {
       return input_base.view(size_vec);
     };
   }
-  // Non differentiable view?
-  auto result = as_view(/* base */ self, /* output */ tmp, /* is_differentiable */ false, /* view_func */ func, /* creation_meta */ CreationMeta::DEFAULT);
+  auto result = as_view(/* base */ self, /* output */ tmp, /* is_bw_differentiable */ true,
+                        /* is_fw_differentiable */ false, /* view_func */ func, /* creation_meta */ CreationMeta::DEFAULT);
   #ifndef NDEBUG
   if (self__storage_saved.has_value())
     AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
@@ -329,7 +329,10 @@ Tensor& resize_as_(
 
 Tensor detach(const Tensor & self) {
   RECORD_FUNCTION("detach", std::vector<c10::IValue>({self}));
-  auto result = make_variable_non_differentiable_view(self, self, /*allow_tensor_metadata_change=*/false);
+  c10::optional<std::function<at::Tensor(const at::Tensor&)>> func=c10::nullopt;
+  auto result = as_view(/* base */ self, /* output */ self, /* is_bw_differentiable */ false,
+                        /* is_fw_differentiable */ true, /* view_func */ func, /* creation_meta */ CreationMeta::DEFAULT,
+                        /*allow_tensor_metadata_change=*/false);
   namedinference::propagate_names(result, self);
 
   // detach only backward gradients for both primal and tangent
@@ -347,20 +350,23 @@ Tensor & detach_(Tensor & self) {
     // NB: is_view() ==> get_autograd_meta()
     auto diff_view_meta = static_cast<torch::autograd::DifferentiableViewMeta*>(torch::autograd::impl::get_autograd_meta(self));
     // See NOTE [ View + Inplace detection ]
-    if (diff_view_meta->creation_meta == CreationMeta::MULTI_OUTPUT_SAFE) {
-        TORCH_WARN("This view is an output of a function that "
-                   "returns multiple views. Detaching such views inplace "
-                   "is being deprecated and will be forbidden "
-                   "starting from version 1.8. Consider using detach() instead "
-                   "of detach_(). Alternatively, create this view with an "
-                   "`unsafe_` version of the function that produced it.");
-    } else {
-      AT_ERROR("If you are using DistributedDataParallel (DDP) for training, "
-               "and gradient_as_bucket_view is set as True, gradients are "
-               "views of DDP buckets, and hence detach_() cannot be called "
-               "on these gradients. To fix this error, please refer to the "
-               "Optimizer.zero_grad() function in torch/optim/optimizer.py "
-               "as the solution.");
+    if (diff_view_meta->has_bw_view()) {
+      if (diff_view_meta->get_creation_meta() == CreationMeta::MULTI_OUTPUT_SAFE) {
+          TORCH_WARN("This view is an output of a function that "
+                     "returns multiple views. Detaching such views inplace "
+                     "is being deprecated and will be forbidden "
+                     "starting from version 1.8. Consider using detach() instead "
+                     "of detach_(). Alternatively, create this view with an "
+                     "`unsafe_` version of the function that produced it.");
+      } else {
+        AT_ERROR("Can't detach views in-place. Use detach() instead. "
+                 "If you are using DistributedDataParallel (DDP) for training, "
+                 "and gradient_as_bucket_view is set as True, gradients are "
+                 "views of DDP buckets, and hence detach_() cannot be called "
+                 "on these gradients. To fix this error, please refer to the "
+                 "Optimizer.zero_grad() function in torch/optim/optimizer.py "
+                 "as the solution.");
+      }
     }
   }
   // I think the choice here is conservative.  In principle, doing
@@ -373,6 +379,12 @@ Tensor & detach_(Tensor & self) {
   autograd_meta->set_requires_grad(false, self.unsafeGetTensorImpl());
   autograd_meta->grad_fn_.reset();
   autograd_meta->output_nr_ = 0;
+
+  // detach only backward gradients for both primal and tangent
+  if (self.fw_grad(/* level */ 0).defined()) {
+    self.fw_grad(/* level */ 0).detach_();
+  }
+
   return self;
 }
 
