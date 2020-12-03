@@ -265,6 +265,24 @@ Tensor & copy_(Tensor & self, const Tensor & src, bool non_blocking) {
   }
   increment_version(self);
   rebase_history(self , std::move(grad_fn));
+
+  if (isDifferentiableType(self.scalar_type()) &&
+      (generated::details::isFwGradDefined(self) || generated::details::isFwGradDefined(src))) {
+    auto self_fw_grad = generated::details::toLegacyFwGrad(self);
+    auto src_fw_grad = generated::details::toLegacyFwGrad(src);
+    Tensor new_fw_grad;
+    if (self_fw_grad.defined()) {
+      if (src_fw_grad.defined()) {
+        new_fw_grad = self_fw_grad.copy_(src_fw_grad);
+      } else {
+        new_fw_grad = self_fw_grad.fill_(0);
+      }
+    } else {
+      new_fw_grad = src_fw_grad;
+    }
+    self.set_fw_grad(new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+  }
+
   return self;
 }
 
@@ -280,6 +298,11 @@ Tensor& resize_(
     at::AutoNonVariableTypeMode non_var_type_mode(true);
     self_.resize_(size, std::move(optional_memory_format));
   }
+
+  if (self.fw_grad(/* level */ 0).defined()) {
+    AT_ERROR("cannot resize variables that has a forward grad");
+  }
+
   return self;
 }
 
@@ -295,6 +318,11 @@ Tensor& resize_as_(
   {
     at::AutoNonVariableTypeMode non_var_type_mode(true);
     at::resize_as_(self_, the_template_, std::move(optional_memory_format));
+  }
+
+  // Handle fw grad
+  if (self.fw_grad(/* level */ 0).defined()) {
+    AT_ERROR("cannot resize variables that has a forward grad");
   }
   return self;
 }
@@ -351,6 +379,12 @@ Tensor & detach_(Tensor & self) {
   autograd_meta->set_requires_grad(false, self.unsafeGetTensorImpl());
   autograd_meta->grad_fn_.reset();
   autograd_meta->output_nr_ = 0;
+
+  // detach only backward gradients for both primal and tangent
+  if (self.fw_grad(/* level */ 0).defined()) {
+    self.fw_grad(/* level */ 0).detach_();
+  }
+
   return self;
 }
 
