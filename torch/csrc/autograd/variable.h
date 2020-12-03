@@ -263,6 +263,35 @@ struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
   }
 };
 
+struct TORCH_API ViewInfo {
+  /// The base `Variable`
+  /// This cannot be a view of the same type as this one.
+  Variable base_;
+
+  /// By default we use as_strided to recover views which is more efficient.
+  /// view_fn is only saved when as_strided is not supported.
+  /// If view_fn has value, we use it to recover views in backward.
+  c10::optional<std::function<Variable(const Variable&)>> view_fn_;
+
+  bool has_view_fn() const {
+    return view_fn_.has_value();
+  }
+
+  std::function<Variable(const Variable&)> view_fn() const {
+    TORCH_CHECK(has_view_fn(), "Can only access the view function if it exists.");
+    return view_fn_.value();
+  }
+
+  ViewInfo chain(const Variable & base, const Variable & tensor,
+    c10::optional<std::function<Variable(const Variable&)>> view_func=c10::nullopt);
+
+  ViewInfo(Variable base, c10::optional<std::function<Variable(const Variable&)>> view_fn) {
+    base_ = std::move(base);
+    view_fn_ = std::move(view_fn);
+    TORCH_CHECK(base_.defined(), "base is undefined");
+  }
+};
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //                     DifferentiableViewMeta
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -281,6 +310,18 @@ struct TORCH_API AutogradMeta : public c10::AutogradMetaInterface {
 ///
 /// Differentiable Views
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// This class allows to track both forward and backward AD differentiable views.
+/// These views can have different base as non-differentiable view for forward
+/// and backward mode AD are not the same.
+///
+/// - Forward Mode View
+/// Views for forward mode AD are only used when inplace operations modify in a
+/// differentiable manner a Tensor that did not had gradient. This means that
+/// such view only needs to be tracked for forward differentiable view when the
+/// Tensor does NOT has a forward grad. In all other cases, this tracking can be
+/// skipped.
+///
+/// - Backward Mode View
 /// Differentiable views are the view variables where you want gradients to flow
 /// back to the base variables. Out-of-place operations on views are quite
 /// straightforward, but in-place ones are very tricky. Even if the base
@@ -399,37 +440,66 @@ enum class CreationMeta: uint8_t { DEFAULT, IN_CUSTOM_FUNCTION, MULTI_OUTPUT_NOD
 TORCH_API void handle_view_on_rebase(DifferentiableViewMeta* diff_view_meta, bool indirect=false);
 
 struct TORCH_API DifferentiableViewMeta : public AutogradMeta {
-  /// The base `Variable` (never a view).
-  Variable base_;
+private:
+  /// Informations about the views
+  c10::optional<ViewInfo> backward_info_;
+  c10::optional<ViewInfo> forward_info_;
+
+  /// The two following fields are extra information that we track to ensure that
+  /// any operation on this backward view is valid.
 
   /// The value of the version_counter at the time grad_fn was created. The
-  /// grad_fn field is stale if attr_version !=
-  /// version_counter.current_version().
+  /// grad_fn field is stale if attr_version != version_counter.current_version().
   uint32_t attr_version;
-
-  /// By default we use as_strided to recover views which is more efficient.
-  /// view_fn is only saved when as_strided is not supported.
-  /// If view_fn has value, we use it to recover views in backward.
-  c10::optional<std::function<at::Tensor(const at::Tensor&)>> view_fn_;
-
   CreationMeta creation_meta;
 
+public:
+  /// requires_grad is a backward AD field so we only use the view specific logic
+  /// for backward differentiable views
   bool requires_grad() const override {
-    return requires_grad_ || grad_fn_ || (is_view_ && base_.requires_grad());
+    return requires_grad_ || grad_fn_ || (has_bw_view() && get_backward_view().base_.requires_grad());
   }
 
-  bool has_view_fn() const {
-    return view_fn_.has_value();
+  bool has_bw_view() const {
+    return backward_info_.has_value();
   }
 
-  std::function<at::Tensor(const at::Tensor&)> view_fn() const {
-    TORCH_CHECK(has_view_fn(), "view_fn is not set.");
-    return view_fn_.value();
+  const ViewInfo& get_backward_view() const {
+    TORCH_CHECK(has_bw_view(), "backward view info can only exist for backward views.");
+    return backward_info_.value();
   }
 
-  DifferentiableViewMeta(at::TensorImpl* self_impl, Variable base, c10::optional<std::function<at::Tensor(const at::Tensor&)>> view_fn,
-                         CreationMeta creation_meta=CreationMeta::DEFAULT);
-  ~DifferentiableViewMeta();
+  uint32_t get_attr_version() const {
+    TORCH_CHECK(has_bw_view(), "attr_version can only exist for backward views.");
+    return attr_version;
+  }
+
+  void set_attr_version(uint32_t new_attr_version) {
+    TORCH_CHECK(has_bw_view(), "attr_version can only exist for backward views.");
+    attr_version = new_attr_version;
+  }
+
+  CreationMeta get_creation_meta() const {
+    TORCH_CHECK(has_bw_view(), "creation_meta can only exist for backward views.");
+    return creation_meta;
+  }
+
+  void set_creation_meta(CreationMeta new_creation_meta) {
+    TORCH_CHECK(has_bw_view(), "creation_meta can only exist for backward views.");
+    creation_meta = new_creation_meta;
+  }
+
+  bool has_fw_view() const {
+    return forward_info_.has_value();
+  }
+
+  const ViewInfo& get_forward_view() const {
+    TORCH_CHECK(has_fw_view(), "forward view info can only exist for forward views.");
+    return forward_info_.value();
+  }
+
+  DifferentiableViewMeta(at::TensorImpl* self_impl, c10::optional<ViewInfo> backward_info,
+    c10::optional<ViewInfo> forward_info, CreationMeta creation_meta=CreationMeta::DEFAULT);
 };
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -455,16 +525,18 @@ struct TORCH_API DifferentiableViewMeta : public AutogradMeta {
 // See NOTE [ Autograd View Variables ] for details.
 // Differentiable view. Track history with DifferentiableViewMeta.
 inline Variable make_variable_differentiable_view(
-    Variable base,
     at::Tensor data,
+    c10::optional<ViewInfo> backward_info,
+    c10::optional<ViewInfo> forward_info,
     CreationMeta creation_meta,
-    c10::optional<std::function<at::Tensor(const at::Tensor&)>> view_func = c10::nullopt) {
+    bool allow_tensor_metadata_change = true) {
   if (data.defined()) {
     auto data_impl_copy = data.getIntrusivePtr()->shallow_copy_and_detach(
       /*version_counter=*/0,
-      /*allow_tensor_metadata_change=*/true);
+      /*allow_tensor_metadata_change=*/allow_tensor_metadata_change);
+
     data_impl_copy->set_autograd_meta(std::make_unique<DifferentiableViewMeta>(
-      data_impl_copy.get(), std::move(base), std::move(view_func),
+      data_impl_copy.get(), std::move(backward_info), std::move(forward_info),
       creation_meta));
     return Variable(data_impl_copy);
   }
