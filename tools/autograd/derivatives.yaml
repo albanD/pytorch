@@ -1150,6 +1150,11 @@
 - name: view(Tensor(a) self, int[] size) -> Tensor(a)
   self: grad.reshape(self.sizes())
 
+# No need to define a forward grad formula here, this is manually defined in
+# VariableTypeManual.cpp
+- name: fw_primal(Tensor(a) self, int level) -> Tensor(a)
+  self: grad.reshape(self.sizes())
+
 - name: view_as_real(Tensor(a) self) -> Tensor(a)
   self: at::view_as_complex(grad.contiguous()) # gx0 + 1j * gx1
 

@@ -1,6 +1,7 @@
 #include <c10/util/Optional.h>
 #include <c10/core/ScalarType.h>
 #include <torch/csrc/autograd/VariableTypeUtils.h>
+#include <torch/csrc/autograd/FunctionsManual.h>
 #include <torch/csrc/utils/memory.h>
 #include <torch/csrc/autograd/utils/error_messages.h>
 #include <torch/csrc/autograd/autograd.h>
@@ -194,6 +195,52 @@ void retain_grad(Tensor & self) {
   impl::get_autograd_meta(self)->retains_grad_ = true;
 }
 
+// Taken from codegened version
+Tensor fw_primal(const Tensor & self, int64_t level) {
+  auto& self_ = unpack(self, "self", 0);
+  std::shared_ptr<FwPrimalBackward> grad_fn;
+  if (compute_requires_grad( self )) {
+    grad_fn = std::shared_ptr<FwPrimalBackward>(new FwPrimalBackward(), deleteNode);
+    grad_fn->set_next_edges(collect_next_edges( self ));
+    grad_fn->self_sizes = self.sizes().vec();
+  }
+  #ifndef NDEBUG
+  c10::optional<Storage> self__storage_saved =
+    self_.has_storage() ? c10::optional<Storage>(self_.storage()) : c10::nullopt;
+  c10::intrusive_ptr<TensorImpl> self__impl_saved;
+  if (self_.defined()) self__impl_saved = self_.getIntrusivePtr();
+  #endif
+  auto tmp = ([&]() {
+    at::AutoNonVariableTypeMode non_var_type_mode(true);
+    // Modified from original codegen
+    return self_.view(self_.sizes());
+    // End modified from original codegen
+  })();
+  c10::optional<std::function<at::Tensor(const at::Tensor&)>> func=c10::nullopt;
+  if (false || !self.unsafeGetTensorImpl()->support_as_strided()) {
+    auto size_vec = self.sizes().vec();
+    func = [=](const at::Tensor& input_base) {
+      return input_base.view(size_vec);
+    };
+  }
+  auto result = as_view(/* base */ self, /* output */ tmp, /* is_bw_differentiable */ true,
+                        /* is_fw_differentiable */ false, /* view_func */ func, /* creation_meta */ CreationMeta::DEFAULT);
+  #ifndef NDEBUG
+  if (self__storage_saved.has_value())
+    AT_ASSERT(self__storage_saved.value().is_alias_of(self_.storage()));
+  if (self__impl_saved) AT_ASSERT(self__impl_saved == self_.getIntrusivePtr());
+  #endif
+  if (grad_fn) {
+      set_history(flatten_tensor_args( result ), grad_fn);
+  }
+  if (generated::details::isFwGradDefined(self)) {
+    // Modified from original codegen
+    // We explicitely want to ignore the forward grad at the given level
+    TORCH_CHECK(level == 0, "Invalid level given to fw_primal");
+    // End modified from original codegen
+  }
+  return result;
+}
 // We don't have an outplace copy, so this can't be generated automatically
 Tensor & copy_(Tensor & self, const Tensor & src, bool non_blocking) {
   jit::Value* output = nullptr;
@@ -335,6 +382,7 @@ TORCH_LIBRARY_IMPL(aten, Math, m) {
   m.impl("output_nr", torch::dispatch(DispatchKey::Math, TORCH_FN(VariableType::output_nr)));
   m.impl("_version", torch::dispatch(DispatchKey::Math, TORCH_FN(VariableType::_version)));
   m.impl("retain_grad", torch::dispatch(DispatchKey::Math, TORCH_FN(VariableType::retain_grad)));
+  m.impl("fw_primal", torch::dispatch(DispatchKey::Math, TORCH_FN(VariableType::fw_primal)));
 }
 
 }  // namespace
