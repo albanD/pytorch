@@ -922,7 +922,6 @@ def emit_body(declaration):
         # set_flags has to appear after version_counter, because rebase_history
         # requires that the counter is incremented before it is called
         body.append(emit_history())
-        body.append(emit_save_outputs())
         body.extend(emit_check_if_in_complex_autograd_allowlist())
 
     if is_out_fn:
@@ -932,6 +931,10 @@ def emit_body(declaration):
             body.extend(emit_fw_derivatives())
         else:
             body.append(emit_forbid_fw_derivatives())
+
+    if requires_derivative:
+        # Save only after the forward AD has been set up
+        body.append(emit_save_outputs())
 
     if base_name in RESET_GRAD_ACCUMULATOR:
         # `inplace` implies that there is exactly one output named `self`,

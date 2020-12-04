@@ -154,7 +154,7 @@ def postprocess_forward_derivatives(
             input_name = args_with_derivatives[0].name
 
             def repl(m):
-                return "{}{}_fw_grad{}".format(m.group(1), input_name, m.group(2))
+                return f"{m.group(1)}{input_name}_fw_grad{m.group(2)}"
             fw_formula = re.sub(IDENT_REGEX.format("grad"), repl, backward_formula)
 
             required_inputs = all_arg_names

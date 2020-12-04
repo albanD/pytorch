@@ -186,6 +186,11 @@
   other: handle_r_to_c(other.scalar_type(), maybe_multiply(grad, alpha.conj()))
   result: "self_fw_grad.defined()? (other_fw_grad.defined()? maybe_multiply(self_fw_grad, alpha) + other_fw_grad : maybe_multiply(self_fw_grad, alpha)) : (other_fw_grad.defined()? other_fw_grad : Tensor())"
 
+- name: add_.Tensor(Tensor(a!) self, Tensor other, *, Scalar alpha=1) -> Tensor(a!)
+  self: handle_r_to_c(self.scalar_type(), grad)
+  other: handle_r_to_c(other.scalar_type(), maybe_multiply(grad, alpha.conj()))
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(alpha) + other_fw_grad : self_fw_grad.mul_(alpha)) : (other_fw_grad.defined()? other_fw_grad : Tensor())"
+
 - name: add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
   self: handle_r_to_c(self.scalar_type(), grad)
   result: maybe_multiply(self_fw_grad, alpha)
@@ -427,7 +432,7 @@
 - name: div.Tensor(Tensor self, Tensor other) -> Tensor
   self: div_tensor_self_backward(grad, other, self.scalar_type())
   other: div_tensor_other_backward(grad, self, other)
-  result: "self_fw_grad.defined() ? (other_fw_grad.defined() ? self_fw_grad / other - other_fw_grad * self / (other * other) : self_fw_grad / other) : (other_fw_grad.defined() ? -1 * other_fw_grad * self / (other * other) : Tensor())"
+  result: "self_fw_grad.defined() ? (other_fw_grad.defined() ? self_fw_grad / other.conj() - other_fw_grad * (self / (other * other)).conj() : self_fw_grad / other.conj()) : (other_fw_grad.defined() ? -1 * other_fw_grad * (self / (other * other)).conj() : Tensor())"
 
 - name: div.Scalar(Tensor self, Scalar other) -> Tensor
   self: div_tensor_self_backward(grad, at::scalar_to_tensor(other), self.scalar_type())
@@ -802,7 +807,12 @@
 - name: mul.Tensor(Tensor self, Tensor other) -> Tensor
   self: mul_tensor_backward(grad, other, self.scalar_type())
   other: mul_tensor_backward(grad, self, other.scalar_type())
-  result: "self_fw_grad.defined()? (other_fw_grad.defined()? other_fw_grad * self + self_fw_grad * other : self_fw_grad * other) : (other_fw_grad.defined()? other_fw_grad * self : Tensor())"
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? other_fw_grad * self.conj() + self_fw_grad * other.conj() : self_fw_grad * other.conj()) : (other_fw_grad.defined()? other_fw_grad * self.conj() : Tensor())"
+
+- name: mul_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
+  self: mul_tensor_backward(grad, other, self.scalar_type())
+  other: mul_tensor_backward(grad, self, other.scalar_type())
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other.conj()).add_(other_fw_grad * self.conj()) : self_fw_grad.mul_(other.conj())) : (other_fw_grad.defined()? other_fw_grad * self.conj() : Tensor())"
 
 - name: mul.Scalar(Tensor self, Scalar other) -> Tensor
   self: mul_tensor_backward(grad, at::scalar_to_tensor(other), self.scalar_type())

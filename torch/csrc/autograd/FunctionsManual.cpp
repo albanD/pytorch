@@ -3078,7 +3078,7 @@ Tensor addmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, con
   }
 
   if (mat1_fw_grad.defined()) {
-    auto val = maybe_multiply(mat1_fw_grad.mm(mat2), alpha);
+    auto val = maybe_multiply(mat1_fw_grad.mm(mat2.conj()), alpha);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {
@@ -3087,7 +3087,7 @@ Tensor addmm_forward(const Tensor& self_fw_grad, const Tensor& mat1_fw_grad, con
   }
 
   if (mat2_fw_grad.defined()) {
-    auto val = maybe_multiply(mat1.mm(mat2_fw_grad), alpha);
+    auto val = maybe_multiply(mat1.conj().mm(mat2_fw_grad), alpha);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {
@@ -3104,12 +3104,12 @@ Tensor bmm_forward(const Tensor& self_fw_grad, const Tensor& mat2_fw_grad,
   Tensor out_fw_grad;
 
   if (self_fw_grad.defined()) {
-    auto val = self_fw_grad.bmm(mat2);
+    auto val = self_fw_grad.bmm(mat2.conj());
     out_fw_grad = val;
   }
 
   if (mat2_fw_grad.defined()) {
-    auto val = self.bmm(mat2_fw_grad);
+    auto val = self.conj().bmm(mat2_fw_grad);
     if (out_fw_grad.defined()) {
       out_fw_grad = out_fw_grad + val;
     } else {
