@@ -812,7 +812,7 @@
 - name: mul_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
   self: mul_tensor_backward(grad, other, self.scalar_type())
   other: mul_tensor_backward(grad, self, other.scalar_type())
-  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other.conj()).add_(other_fw_grad * self.conj()) : self_fw_grad.mul_(other.conj())) : (other_fw_grad.defined()? other_fw_grad * self.conj() : Tensor())"
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other.conj()).add_(other_fw_grad * (self / other).conj()) : self_fw_grad.mul_(other.conj())) : (other_fw_grad.defined()? other_fw_grad * (self / result).conj() : Tensor())"
 
 - name: mul.Scalar(Tensor self, Scalar other) -> Tensor
   self: mul_tensor_backward(grad, at::scalar_to_tensor(other), self.scalar_type())

@@ -7275,7 +7275,7 @@ class TestAutogradDeviceType(TestCase):
 
     def test_inplace_view_gradcheck(self, device):
         # gradcheck modifications to views
-        a = torch.randn(4, 4, device=device, requires_grad=True)
+        a = torch.ones(4, 4, device=device, requires_grad=True)
         b = torch.randn(2, 2, device=device, requires_grad=True)
 
         def func(root, b):
