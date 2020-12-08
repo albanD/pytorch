@@ -5466,8 +5466,8 @@ class TestAutogradFunctional(TestCase):
         self.assertIsNotNone(res[0].grad_fn)
         self.assertIsNotNone(res[1].grad_fn)
 
-        gradcheck(lambda inp, v: autogradF.vjp(reducer, inputs, v, create_graph=True), (inputs, v))
-        gradgradcheck(lambda inp, v: autogradF.vjp(reducer, inputs, v, create_graph=True), (inputs, v))
+        gradcheck(lambda inp, v: autogradF.vjp(reducer, inputs, v, create_graph=True), (inputs, v), check_forward=False)
+        gradgradcheck(lambda inp, v: autogradF.vjp(reducer, inputs, v, create_graph=True), (inputs, v), check_forward=False)
 
         def adder(x, y):
             return 2 * x + 3 * y, x * y
@@ -7286,7 +7286,8 @@ class TestAutogradDeviceType(TestCase):
 
         gradcheck(func, [a, b], raise_exception=True)
         go = torch.randn(a.size(), device=device, requires_grad=True)
-        gradgradcheck(func, (a, b), (go,))
+        # TODO(albanD): re-enable forward tests
+        gradgradcheck(func, (a, b), (go,), check_forward=False)
 
     def test_inplace_view_multiple_outputs(self, device):
         root = torch.arange(9.).reshape(3, 3).requires_grad_()

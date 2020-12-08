@@ -202,7 +202,6 @@ Tensor fw_primal(const Tensor & self, int64_t level) {
   if (compute_requires_grad( self )) {
     grad_fn = std::shared_ptr<FwPrimalBackward>(new FwPrimalBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_sizes = self.sizes().vec();
   }
   #ifndef NDEBUG
   c10::optional<Storage> self__storage_saved =

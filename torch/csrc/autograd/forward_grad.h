@@ -88,7 +88,7 @@ struct TORCH_API ForwardGrad : std::enable_shared_from_this<ForwardGrad> {
         return content_.count(level) > 0;
     }
 
-    bool empty() {
+    bool empty() const {
         return content_.empty();
     }
 

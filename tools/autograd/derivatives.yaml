@@ -189,7 +189,7 @@
 - name: add_.Tensor(Tensor(a!) self, Tensor other, *, Scalar alpha=1) -> Tensor(a!)
   self: handle_r_to_c(self.scalar_type(), grad)
   other: handle_r_to_c(other.scalar_type(), maybe_multiply(grad, alpha.conj()))
-  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(alpha) + other_fw_grad : self_fw_grad.mul_(alpha)) : (other_fw_grad.defined()? other_fw_grad : Tensor())"
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(alpha).add_(other_fw_grad) : self_fw_grad.mul_(alpha)) : (other_fw_grad.defined()? other_fw_grad : Tensor())"
 
 - name: add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
   self: handle_r_to_c(self.scalar_type(), grad)
@@ -812,7 +812,7 @@
 - name: mul_.Tensor(Tensor(a!) self, Tensor other) -> Tensor(a!)
   self: mul_tensor_backward(grad, other, self.scalar_type())
   other: mul_tensor_backward(grad, self, other.scalar_type())
-  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other.conj()).add_(other_fw_grad * (self / other).conj()) : self_fw_grad.mul_(other.conj())) : (other_fw_grad.defined()? other_fw_grad * (self / result).conj() : Tensor())"
+  result: "self_fw_grad.defined()? (other_fw_grad.defined()? self_fw_grad.mul_(other.conj()).add_(other_fw_grad * (self / other).conj()) : self_fw_grad.mul_(other.conj())) : (other_fw_grad.defined()? other_fw_grad * (self / other).conj() : Tensor())"
 
 - name: mul.Scalar(Tensor self, Scalar other) -> Tensor
   self: mul_tensor_backward(grad, at::scalar_to_tensor(other), self.scalar_type())
@@ -1228,7 +1228,7 @@
 # No need to define a forward grad formula here, this is manually defined in
 # VariableTypeManual.cpp
 - name: fw_primal(Tensor(a) self, int level) -> Tensor(a)
-  self: grad.reshape(self.sizes())
+  self: grad
 
 - name: view_as_real(Tensor(a) self) -> Tensor(a)
   self: at::view_as_complex(grad.contiguous()) # gx0 + 1j * gx1
