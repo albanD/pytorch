@@ -14,12 +14,14 @@ class Categorizer:
         self.category = category
 
     def categorize(self):
-        commits = self.commits.filter(self.category)
+        commits = self.commits.filter(category=self.category)
+        total_commits = len(self.commits.commits)
+        already_done = total_commits - len(commits)
         i = 0
         while i < len(commits):
             cur_commit = commits[i]
             next_commit = commits[i + 1] if i + 1 < len(commits) else None
-            jump_to = self.handle_commit(cur_commit, i + 1, len(commits), commits)
+            jump_to = self.handle_commit(cur_commit, already_done + i + 1, total_commits, commits)
 
             # Increment counter
             if jump_to is not None:
