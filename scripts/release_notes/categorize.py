@@ -55,7 +55,7 @@ class Categorizer:
         features = self.features(commit)
 
         breaking_alarm = ""
-        if 'topic: bc-breaking' in features.labels:
+        if 'module: bc-breaking' in features.labels:
             breaking_alarm += "!!!!!! BC BREAKING !!!!!!"
 
         if 'module: deprecation' in features.labels:
@@ -67,13 +67,13 @@ class Categorizer:
 ================================================================================
 {features.title}
 
+{potential_reverts} {breaking_alarm}
+
 {features.body}
 
 Files changed: {features.files_changed}
 
 Labels: {features.labels}
-
-{potential_reverts} {breaking_alarm}
 
 Current category: {commit.category}
 
