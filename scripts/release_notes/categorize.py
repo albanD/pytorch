@@ -35,15 +35,26 @@ class Categorizer:
         return self.cache.get(commit.commit_hash)
 
     def potential_reverts_of(self, commit, commits):
-        if 'Updating submodules' in commit.title:
+        submodule_update_str = ['Update TensorPipe submodule',
+                                'Updating submodules',
+                                'Automated submodule update']
+        if any(a in commit.title for a in submodule_update_str):
             return []
+
+        features = self.features(commit)
+        if 'Reverted' in features.labels:
+            reasons = {'GithubBot': "Reverted"}
+        else:
+            reasons = {}
+
         index = commits.index(commit)
         # -8 to remove the (#35011)
         cleaned_title = commit.title[:-10]
         # NB: the index + 2 is sketch
-        return {(index + 2 + delta): cand for delta, cand in enumerate(commits[index + 1:])
+        reasons.update({(index + 2 + delta): cand for delta, cand in enumerate(commits[index + 1:])
                 if cleaned_title in cand.title and
-                commit.commit_hash != cand.commit_hash}
+                commit.commit_hash != cand.commit_hash})
+        return reasons
 
     def handle_commit(self, commit, i, total, commits):
         potential_reverts = self.potential_reverts_of(commit, commits)
@@ -56,10 +67,10 @@ class Categorizer:
 
         breaking_alarm = ""
         if 'module: bc-breaking' in features.labels:
-            breaking_alarm += "!!!!!! BC BREAKING !!!!!!"
+            breaking_alarm += "\n!!!!!! BC BREAKING !!!!!!"
 
         if 'module: deprecation' in features.labels:
-            breaking_alarm += "!!!!!! DEPRECATION !!!!!!"
+            breaking_alarm += "\n!!!!!! DEPRECATION !!!!!!"
 
         os.system('clear')
         view = textwrap.dedent(f'''\
