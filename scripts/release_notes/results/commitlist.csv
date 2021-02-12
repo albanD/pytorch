@@ -3069,7 +3069,13 @@ a930162c69,skip,Untopiced,Revert D26276903: [pytorch][PR] Add LazyBatchNormXd
 50c9c08203,skip,Untopiced,Enable GPU/RE tags for caffe2/caffe2/python/TARGETS
 430329e875,skip,Untopiced,Revert D26009829: Optimize relu on cpu using clamp_min
 5c3a054b12,profiler,Untopiced,Add FLOPS support to the new profiler API. (#51734)
-fb07aca7b0,Uncategorized,Untopiced,Adding support for CUDA 11.2 in our nightly build matrix (#51611)
-ececbcfff2,Uncategorized,Untopiced,[Conda][Kineto] efine weak `acc_get_device_type` if kineto is used (#51818)
-8c48af822e,Uncategorized,Untopiced,pytorch docs: add fake_quantize functions documentation (#51748)
-9112f4eded,Uncategorized,Untopiced,[FX][docs] Indent forward (#51802)
+fb07aca7b0,skip,Untopiced,Adding support for CUDA 11.2 in our nightly build matrix (#51611)
+ececbcfff2,profiler,Untopiced,[Conda][Kineto] efine weak `acc_get_device_type` if kineto is used (#51818)
+8c48af822e,quantization,docs,pytorch docs: add fake_quantize functions documentation (#51748)
+9112f4eded,fx,Untopiced,[FX][docs] Indent forward (#51802)
+5bb69b080c,skip,Untopiced,concantenate LICENSE files when building a wheel (#51634) (#51882)
+75153cb730,skip,Untopiced,Disable unaliged-access test from TestVectorizedMemoryAccess.CopyKernel (#51864) (#51890)
+4073248fc2,fx,Untopiced,[FX] Hide experimental folder (#51987)
+1368809532,python_frontend,docs,[v1.8.0] [wip] doc_fix (#52006)
+fa8578241d,skip,Untopiced,.jenkins: Release branch specific updates (#51982)
+9e5bcc1020,jit,Untopiced,1.8 cherrypick: Add metacompile of Ternary if (#51789) (#51913)
