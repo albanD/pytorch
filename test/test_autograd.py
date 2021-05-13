@@ -115,6 +115,41 @@ class TestAutograd(TestCase):
             foo = dummy.grad
             self.assertEqual(len(w), 1)
 
+    def test_access_grad_fn_in_traverse_or_destr(self):
+        import gc
+        t = torch.rand(2, requires_grad=True).clone()
+
+        view = t.unbind()[0]
+        t += 1
+
+        # Any access to view's grad_fn after that will crash
+        msg = "Output 0 of UnbindBackward is a view and its base or another view of its base has been modified inplace"
+        with self.assertRaisesRegex(RuntimeError, msg):
+            view.grad_fn
+
+        # But if it is not used, all is good
+        del view
+        gc.collect()
+
+        # What if is part of a cycle and traverse gets called?
+        t = torch.rand(2, requires_grad=True).clone()
+
+        view = t.unbind()[0]
+        t += 1
+
+        a = []
+        a.append(view)
+        a.append(a)
+
+        del a, view
+        # Since the gc traverses, it will actually crash
+        # I can't nicely catch this error but the line below will fail with msg as well
+        # You should see the about to collect message just before the crash
+        print("About to collect")
+        gc.collect()
+        print("Done collecting")
+
+
     def _function_test(self, cls):
         x = torch.randn(5, 5, requires_grad=True)
         y = torch.randn(5, 5, requires_grad=True)

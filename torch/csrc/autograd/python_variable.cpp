@@ -119,6 +119,16 @@ PyObject * THPVariable_Wrap(Variable var)
 static int THPVariable_traverse(THPVariable *self, visitproc visit, void *arg)
 {
   Py_VISIT(self->backward_hooks);
+
+  const auto& tt = THPVariable_Unpack(self);
+  if (tt.defined()) {
+    // Just ask for the grad_fn, don't do anything with it (we print so that
+    // the compiler doesn't optimize it away)
+    auto grad_fn = tt.grad_fn();
+    if (grad_fn) {
+      std::cout << "Traversing: " << grad_fn->name() << std::endl;
+    }
+  }
   // We don't want to traverse the grad_fn, even if the Variable owns it and the
   // shared pointer's use count is 1. This is because we would need to treat
   // the grad_fn as part of the Python state and hold the GIL sometimes when
