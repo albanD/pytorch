@@ -7208,7 +7208,15 @@ static struct PyGetSetDef LinalgEigBackward_properties[] = {
 
 
 
-static struct PyGetSetDef TBackward_properties[] = {
+static struct PyGetSetDef TBackward0_properties[] = {
+  THP_FUNCTION_DEFAULT_PROPERTIES,
+
+  {nullptr} /* sentinel */
+};
+
+
+
+static struct PyGetSetDef TBackward1_properties[] = {
   THP_FUNCTION_DEFAULT_PROPERTIES,
 
   {nullptr} /* sentinel */
@@ -9307,125 +9315,64 @@ static struct PyGetSetDef HardshrinkBackwardBackward_properties[] = {
   {nullptr} /* sentinel */
 };
 
-PyObject* THPHardtanhBackward0_self_getter(THPCppFunction *self, void *_unused) {
+PyObject* THPHardtanhBackward_min_val_getter(THPCppFunction *self, void *_unused) {
   HANDLE_TH_ERRORS
-  const auto& prop = static_cast<HardtanhBackward0*>(self->cdata.get())->self_;
+  auto prop = static_cast<HardtanhBackward*>(self->cdata.get())->min_val;
+  if (prop.isComplex()) {
+    auto cprop = prop.to<c10::complex<double>>();
+    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
+  } else if (prop.isFloatingPoint()) {
+    return PyFloat_FromDouble(prop.to<double>());
+  } else if (prop.isIntegral(/*includeBool=*/false)) {
+    return PyLong_FromLong(prop.to<int64_t>());
+  } else if (prop.isBoolean()) {
+    if (prop.to<bool>()) {
+      Py_RETURN_TRUE;
+    } else {
+      Py_RETURN_FALSE;
+    }
+  } else {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
+    return nullptr;
+  }
+  END_HANDLE_TH_ERRORS
+}
+
+PyObject* THPHardtanhBackward_max_val_getter(THPCppFunction *self, void *_unused) {
+  HANDLE_TH_ERRORS
+  auto prop = static_cast<HardtanhBackward*>(self->cdata.get())->max_val;
+  if (prop.isComplex()) {
+    auto cprop = prop.to<c10::complex<double>>();
+    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
+  } else if (prop.isFloatingPoint()) {
+    return PyFloat_FromDouble(prop.to<double>());
+  } else if (prop.isIntegral(/*includeBool=*/false)) {
+    return PyLong_FromLong(prop.to<int64_t>());
+  } else if (prop.isBoolean()) {
+    if (prop.to<bool>()) {
+      Py_RETURN_TRUE;
+    } else {
+      Py_RETURN_FALSE;
+    }
+  } else {
+    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
+    return nullptr;
+  }
+  END_HANDLE_TH_ERRORS
+}
+
+PyObject* THPHardtanhBackward_result_getter(THPCppFunction *self, void *_unused) {
+  HANDLE_TH_ERRORS
+  const auto& prop = static_cast<HardtanhBackward*>(self->cdata.get())->result_;
   return THPVariable_Wrap(prop.unpack(self->cdata));
   END_HANDLE_TH_ERRORS
 }
 
-PyObject* THPHardtanhBackward0_min_val_getter(THPCppFunction *self, void *_unused) {
-  HANDLE_TH_ERRORS
-  auto prop = static_cast<HardtanhBackward0*>(self->cdata.get())->min_val;
-  if (prop.isComplex()) {
-    auto cprop = prop.to<c10::complex<double>>();
-    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
-  } else if (prop.isFloatingPoint()) {
-    return PyFloat_FromDouble(prop.to<double>());
-  } else if (prop.isIntegral(/*includeBool=*/false)) {
-    return PyLong_FromLong(prop.to<int64_t>());
-  } else if (prop.isBoolean()) {
-    if (prop.to<bool>()) {
-      Py_RETURN_TRUE;
-    } else {
-      Py_RETURN_FALSE;
-    }
-  } else {
-    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
-    return nullptr;
-  }
-  END_HANDLE_TH_ERRORS
-}
-
-PyObject* THPHardtanhBackward0_max_val_getter(THPCppFunction *self, void *_unused) {
-  HANDLE_TH_ERRORS
-  auto prop = static_cast<HardtanhBackward0*>(self->cdata.get())->max_val;
-  if (prop.isComplex()) {
-    auto cprop = prop.to<c10::complex<double>>();
-    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
-  } else if (prop.isFloatingPoint()) {
-    return PyFloat_FromDouble(prop.to<double>());
-  } else if (prop.isIntegral(/*includeBool=*/false)) {
-    return PyLong_FromLong(prop.to<int64_t>());
-  } else if (prop.isBoolean()) {
-    if (prop.to<bool>()) {
-      Py_RETURN_TRUE;
-    } else {
-      Py_RETURN_FALSE;
-    }
-  } else {
-    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
-    return nullptr;
-  }
-  END_HANDLE_TH_ERRORS
-}
-
-static struct PyGetSetDef HardtanhBackward0_properties[] = {
+static struct PyGetSetDef HardtanhBackward_properties[] = {
   THP_FUNCTION_DEFAULT_PROPERTIES,
-  {(char*)"_saved_self", (getter)THPHardtanhBackward0_self_getter, nullptr, nullptr, nullptr},
-  {(char*)"_saved_min_val", (getter)THPHardtanhBackward0_min_val_getter, nullptr, nullptr, nullptr},
-  {(char*)"_saved_max_val", (getter)THPHardtanhBackward0_max_val_getter, nullptr, nullptr, nullptr},
-  {nullptr} /* sentinel */
-};
-
-PyObject* THPHardtanhBackward1_min_val_getter(THPCppFunction *self, void *_unused) {
-  HANDLE_TH_ERRORS
-  auto prop = static_cast<HardtanhBackward1*>(self->cdata.get())->min_val;
-  if (prop.isComplex()) {
-    auto cprop = prop.to<c10::complex<double>>();
-    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
-  } else if (prop.isFloatingPoint()) {
-    return PyFloat_FromDouble(prop.to<double>());
-  } else if (prop.isIntegral(/*includeBool=*/false)) {
-    return PyLong_FromLong(prop.to<int64_t>());
-  } else if (prop.isBoolean()) {
-    if (prop.to<bool>()) {
-      Py_RETURN_TRUE;
-    } else {
-      Py_RETURN_FALSE;
-    }
-  } else {
-    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
-    return nullptr;
-  }
-  END_HANDLE_TH_ERRORS
-}
-
-PyObject* THPHardtanhBackward1_max_val_getter(THPCppFunction *self, void *_unused) {
-  HANDLE_TH_ERRORS
-  auto prop = static_cast<HardtanhBackward1*>(self->cdata.get())->max_val;
-  if (prop.isComplex()) {
-    auto cprop = prop.to<c10::complex<double>>();
-    return PyComplex_FromDoubles(cprop.real(), cprop.imag());
-  } else if (prop.isFloatingPoint()) {
-    return PyFloat_FromDouble(prop.to<double>());
-  } else if (prop.isIntegral(/*includeBool=*/false)) {
-    return PyLong_FromLong(prop.to<int64_t>());
-  } else if (prop.isBoolean()) {
-    if (prop.to<bool>()) {
-      Py_RETURN_TRUE;
-    } else {
-      Py_RETURN_FALSE;
-    }
-  } else {
-    PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
-    return nullptr;
-  }
-  END_HANDLE_TH_ERRORS
-}
-
-PyObject* THPHardtanhBackward1_result_getter(THPCppFunction *self, void *_unused) {
-  HANDLE_TH_ERRORS
-  const auto& prop = static_cast<HardtanhBackward1*>(self->cdata.get())->result_;
-  return THPVariable_Wrap(prop.unpack(self->cdata));
-  END_HANDLE_TH_ERRORS
-}
-
-static struct PyGetSetDef HardtanhBackward1_properties[] = {
-  THP_FUNCTION_DEFAULT_PROPERTIES,
-  {(char*)"_saved_min_val", (getter)THPHardtanhBackward1_min_val_getter, nullptr, nullptr, nullptr},
-  {(char*)"_saved_max_val", (getter)THPHardtanhBackward1_max_val_getter, nullptr, nullptr, nullptr},
-  {(char*)"_saved_result", (getter)THPHardtanhBackward1_result_getter, nullptr, nullptr, nullptr},
+  {(char*)"_saved_min_val", (getter)THPHardtanhBackward_min_val_getter, nullptr, nullptr, nullptr},
+  {(char*)"_saved_max_val", (getter)THPHardtanhBackward_max_val_getter, nullptr, nullptr, nullptr},
+  {(char*)"_saved_result", (getter)THPHardtanhBackward_result_getter, nullptr, nullptr, nullptr},
   {nullptr} /* sentinel */
 };
 
@@ -18147,8 +18094,10 @@ void initialize_autogenerated_functions() {
   addClass<LinalgEighBackward>(LinalgEighBackwardClass, "LinalgEighBackward", LinalgEighBackward_properties);
   static PyTypeObject LinalgEigBackwardClass;
   addClass<LinalgEigBackward>(LinalgEigBackwardClass, "LinalgEigBackward", LinalgEigBackward_properties);
-  static PyTypeObject TBackwardClass;
-  addClass<TBackward>(TBackwardClass, "TBackward", TBackward_properties);
+  static PyTypeObject TBackward0Class;
+  addClass<TBackward0>(TBackward0Class, "TBackward0", TBackward0_properties);
+  static PyTypeObject TBackward1Class;
+  addClass<TBackward1>(TBackward1Class, "TBackward1", TBackward1_properties);
   static PyTypeObject FlipBackwardClass;
   addClass<FlipBackward>(FlipBackwardClass, "FlipBackward", FlipBackward_properties);
   static PyTypeObject RollBackwardClass;
@@ -18299,10 +18248,8 @@ void initialize_autogenerated_functions() {
   addClass<HardshrinkBackward>(HardshrinkBackwardClass, "HardshrinkBackward", HardshrinkBackward_properties);
   static PyTypeObject HardshrinkBackwardBackwardClass;
   addClass<HardshrinkBackwardBackward>(HardshrinkBackwardBackwardClass, "HardshrinkBackwardBackward", HardshrinkBackwardBackward_properties);
-  static PyTypeObject HardtanhBackward0Class;
-  addClass<HardtanhBackward0>(HardtanhBackward0Class, "HardtanhBackward0", HardtanhBackward0_properties);
-  static PyTypeObject HardtanhBackward1Class;
-  addClass<HardtanhBackward1>(HardtanhBackward1Class, "HardtanhBackward1", HardtanhBackward1_properties);
+  static PyTypeObject HardtanhBackwardClass;
+  addClass<HardtanhBackward>(HardtanhBackwardClass, "HardtanhBackward", HardtanhBackward_properties);
   static PyTypeObject LeakyReluBackward0Class;
   addClass<LeakyReluBackward0>(LeakyReluBackward0Class, "LeakyReluBackward0", LeakyReluBackward0_properties);
   static PyTypeObject LeakyReluBackward1Class;

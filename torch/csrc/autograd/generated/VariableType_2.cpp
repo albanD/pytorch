@@ -4308,6 +4308,8 @@ at::Tensor flip(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<FlipBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<FlipBackward>(new FlipBackward(), deleteNode);
@@ -4333,7 +4335,15 @@ at::Tensor flip(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with flip that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = at::flip(self_t, dims);
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & fmax_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, at::Tensor & out) {
@@ -5044,11 +5054,12 @@ at::Tensor hardtanh(c10::DispatchKeySet ks, const at::Tensor & self, const at::S
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
-  std::shared_ptr<HardtanhBackward0> grad_fn;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
+  std::shared_ptr<HardtanhBackward> grad_fn;
   if (_any_requires_grad) {
-    grad_fn = std::shared_ptr<HardtanhBackward0>(new HardtanhBackward0(), deleteNode);
+    grad_fn = std::shared_ptr<HardtanhBackward>(new HardtanhBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self, false);
     grad_fn->min_val = min_val;
     grad_fn->max_val = max_val;
   }
@@ -5072,18 +5083,31 @@ at::Tensor hardtanh(c10::DispatchKeySet ks, const at::Tensor & self, const at::S
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "hardtanh");
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with hardtanh that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = (hardtanh_backward(self_t.conj(), result, min_val, max_val)).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
+  if (grad_fn) {
+    grad_fn->result_ = SavedVariable(result, true);
+  }
   return result;
 }
 at::Tensor & hardtanh_(c10::DispatchKeySet ks, at::Tensor & self, const at::Scalar & min_val, const at::Scalar & max_val) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
-  std::shared_ptr<HardtanhBackward1> grad_fn;
+  std::shared_ptr<HardtanhBackward> grad_fn;
   if (_any_requires_grad) {
-    grad_fn = std::shared_ptr<HardtanhBackward1>(new HardtanhBackward1(), deleteNode);
+    grad_fn = std::shared_ptr<HardtanhBackward>(new HardtanhBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
     grad_fn->min_val = min_val;
     grad_fn->max_val = max_val;
@@ -5106,7 +5130,17 @@ at::Tensor & hardtanh_(c10::DispatchKeySet ks, at::Tensor & self, const at::Scal
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with hardtanh_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((hardtanh_backward(self_t.conj(), self_p, min_val, max_val)).conj()) : (hardtanh_backward(self_t.conj(), self_p, min_val, max_val)).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(self, true, self.is_view());
   }
@@ -6202,6 +6236,8 @@ at::Tensor & logit_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10:
   auto& out_ = unpack(out, "out", 2);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("logit");
@@ -7841,6 +7877,8 @@ at::Tensor pow_Tensor_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, co
   auto& exponent_ = unpack(exponent, "exponent", 1);
   auto _any_requires_grad = compute_requires_grad( self, exponent );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(exponent);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<PowBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<PowBackward1>(new PowBackward1(), deleteNode);
@@ -7874,7 +7912,19 @@ at::Tensor pow_Tensor_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, co
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(exponent)), "Trying to use forward AD with pow that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      auto exponent_t_raw = toNonOptFwGrad(exponent);
+      auto exponent_t = exponent_t_raw.defined() ? exponent_t_raw : at::zeros_like(toNonOptTensor(exponent));
+      auto exponent_p = toNonOptPrimal(exponent);
+      auto result_new_fw_grad = (pow_backward_self(self_t.conj(), self_p, exponent_p) + pow_backward_exponent(exponent_t.conj(), self_p, exponent_p, result)).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(result, true);
   }
@@ -7884,6 +7934,8 @@ at::Tensor pow_Scalar(c10::DispatchKeySet ks, const at::Scalar & self, const at:
   auto& exponent_ = unpack(exponent, "exponent", 1);
   auto _any_requires_grad = compute_requires_grad( exponent );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(exponent);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<PowBackward2> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<PowBackward2>(new PowBackward2(), deleteNode);
@@ -7910,7 +7962,16 @@ at::Tensor pow_Scalar(c10::DispatchKeySet ks, const at::Scalar & self, const at:
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(exponent)), "Trying to use forward AD with pow that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto exponent_t_raw = toNonOptFwGrad(exponent);
+      auto exponent_t = exponent_t_raw.defined() ? exponent_t_raw : at::zeros_like(toNonOptTensor(exponent));
+      auto exponent_p = toNonOptPrimal(exponent);
+      auto result_new_fw_grad = (pow_backward_exponent(exponent_t.conj(), self, exponent_p, result)).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(result, true);
   }
@@ -7920,6 +7981,8 @@ at::Tensor pow_Tensor_Scalar(c10::DispatchKeySet ks, const at::Tensor & self, co
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<PowBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<PowBackward0>(new PowBackward0(), deleteNode);
@@ -7946,15 +8009,29 @@ at::Tensor pow_Tensor_Scalar(c10::DispatchKeySet ks, const at::Tensor & self, co
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with pow that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      auto result_new_fw_grad = (pow_backward(self_t.conj(), self_p, exponent)).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & pow__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Scalar & exponent) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<PowBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<PowBackward0>(new PowBackward0(), deleteNode);
@@ -7981,7 +8058,19 @@ at::Tensor & pow__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sc
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with pow_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((pow_backward(original_self_t.conj(), original_self_p, exponent)).conj()) : (pow_backward(original_self_t.conj(), original_self_p, exponent)).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   return self;
 }
 at::Tensor & pow__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor & exponent) {
@@ -7989,8 +8078,13 @@ at::Tensor & pow__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Te
   auto& exponent_ = unpack(exponent, "exponent", 1);
   auto _any_requires_grad = compute_requires_grad( self, exponent );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(exponent);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<PowBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<PowBackward1>(new PowBackward1(), deleteNode);
@@ -8024,7 +8118,22 @@ at::Tensor & pow__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(exponent)), "Trying to use forward AD with pow_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      auto exponent_t_raw = toNonOptFwGrad(exponent);
+      auto exponent_t = exponent_t_raw.defined() ? exponent_t_raw : at::zeros_like(toNonOptTensor(exponent));
+      auto exponent_p = toNonOptPrimal(exponent);
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((pow_backward_self(original_self_t.conj(), original_self_p, exponent_p) + pow_backward_exponent(exponent_t.conj(), original_self_p, exponent_p, self_p)).conj()) : (pow_backward_self(original_self_t.conj(), original_self_p, exponent_p) + pow_backward_exponent(exponent_t.conj(), original_self_p, exponent_p, self_p)).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(self, true, self.is_view());
   }
@@ -8522,6 +8631,8 @@ at::Tensor round(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<RoundBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<RoundBackward>(new RoundBackward(), deleteNode);
@@ -8547,13 +8658,23 @@ at::Tensor round(c10::DispatchKeySet ks, const at::Tensor & self) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "round");
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with round that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = (zeros_like(self_t.conj())).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & round_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
   std::shared_ptr<RoundBackward> grad_fn;
@@ -8579,13 +8700,24 @@ at::Tensor & round_(c10::DispatchKeySet ks, at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with round_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((zeros_like(self_t.conj())).conj()) : (zeros_like(self_t.conj())).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   return self;
 }
 at::Tensor rsqrt(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<RsqrtBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<RsqrtBackward>(new RsqrtBackward(), deleteNode);
@@ -8610,7 +8742,15 @@ at::Tensor rsqrt(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with rsqrt that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = (-0.5 * self_t.conj() * result.pow(3).conj()).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(result, true);
   }
@@ -8620,6 +8760,8 @@ at::Tensor & rsqrt_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
   std::shared_ptr<RsqrtBackward> grad_fn;
@@ -8645,7 +8787,17 @@ at::Tensor & rsqrt_(c10::DispatchKeySet ks, at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with rsqrt_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((-0.5 * self_t.conj() * self_p.pow(3).conj()).conj()) : (-0.5 * self_t.conj() * self_p.pow(3).conj()).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(self, true, self.is_view());
   }
@@ -9043,6 +9195,8 @@ at::Tensor & sgn_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("sgn");
@@ -9083,6 +9237,8 @@ at::Tensor & sigmoid_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("sigmoid");
@@ -9123,6 +9279,8 @@ at::Tensor & sign_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("sign");
@@ -9769,6 +9927,8 @@ at::Tensor & special_entr_out_out(c10::DispatchKeySet ks, const at::Tensor & sel
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("special_entr");
@@ -10048,6 +10208,8 @@ at::Tensor & sqrt_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("sqrt");
@@ -10088,6 +10250,8 @@ at::Tensor & tan_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("tan");
@@ -10127,6 +10291,8 @@ at::Tensor tanh(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<TanhBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<TanhBackward>(new TanhBackward(), deleteNode);
@@ -10151,7 +10317,15 @@ at::Tensor tanh(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with tanh that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = (tanh_backward(self_t.conj(), result)).conj();
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(result, true);
   }
@@ -10161,6 +10335,8 @@ at::Tensor & tanh_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
   std::shared_ptr<TanhBackward> grad_fn;
@@ -10186,7 +10362,17 @@ at::Tensor & tanh_(c10::DispatchKeySet ks, at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with tanh_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_p = toNonOptPrimal(self);
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((tanh_backward(self_t.conj(), self_p)).conj()) : (tanh_backward(self_t.conj(), self_p)).conj();
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   if (grad_fn) {
     grad_fn->result_ = SavedVariable(self, true, self.is_view());
   }
@@ -10390,6 +10576,8 @@ at::Tensor trace(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<TraceBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<TraceBackward>(new TraceBackward(), deleteNode);
@@ -10415,7 +10603,15 @@ at::Tensor trace(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with trace that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = at::trace(self_t);
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & tril_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t diagonal, at::Tensor & out) {
@@ -10423,6 +10619,8 @@ at::Tensor & tril_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64
   auto& out_ = unpack(out, "out", 2);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("tril");
@@ -10462,6 +10660,8 @@ at::Tensor triu(c10::DispatchKeySet ks, const at::Tensor & self, int64_t diagona
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<TriuBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<TriuBackward>(new TriuBackward(), deleteNode);
@@ -10487,13 +10687,23 @@ at::Tensor triu(c10::DispatchKeySet ks, const at::Tensor & self, int64_t diagona
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with triu that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = at::triu(self_t, diagonal);
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & triu_(c10::DispatchKeySet ks, at::Tensor & self, int64_t diagonal) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
   std::shared_ptr<TriuBackward> grad_fn;
@@ -10520,7 +10730,16 @@ at::Tensor & triu_(c10::DispatchKeySet ks, at::Tensor & self, int64_t diagonal) 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with triu_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(at::triu(self_t, diagonal)) : at::triu(self_t, diagonal);
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   return self;
 }
 at::Tensor triu_indices(c10::DispatchKeySet ks, int64_t row, int64_t col, int64_t offset, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
@@ -10570,6 +10789,8 @@ at::Tensor unsqueeze(c10::DispatchKeySet ks, const at::Tensor & self, int64_t di
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<UnsqueezeBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<UnsqueezeBackward0>(new UnsqueezeBackward0(), deleteNode);
@@ -10595,13 +10816,23 @@ at::Tensor unsqueeze(c10::DispatchKeySet ks, const at::Tensor & self, int64_t di
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with unsqueeze that does not support it.");
+  if (_any_has_forward_grad_result) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto result_new_fw_grad = at::unsqueeze(self_t, dim);
+      if (result_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        result._set_fw_grad(result_new_fw_grad, /* level */ 0, /* is_inplace_op */ false);
+      }
+  }
   return result;
 }
 at::Tensor & unsqueeze_(c10::DispatchKeySet ks, at::Tensor & self, int64_t dim) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
   c10::optional<at::Tensor> original_self;
   std::shared_ptr<UnsqueezeBackward1> grad_fn;
@@ -10628,7 +10859,15 @@ at::Tensor & unsqueeze_(c10::DispatchKeySet ks, at::Tensor & self, int64_t dim) 
   if (grad_fn) {
       set_history(flatten_tensor_args( self ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with unsqueeze_ that does not support it.");
+  if (_any_has_forward_grad_self) {
+      auto self_t_raw = toNonOptFwGrad(self);
+      auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      auto self_new_fw_grad = self_t.unsqueeze_(dim);
+      if (self_new_fw_grad.defined()) {
+        // The hardcoded 0 here will need to be updated once we support multiple levels.
+        self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
+      }
+  }
   return self;
 }
 at::Tensor upsample_bicubic2d_vec(c10::DispatchKeySet ks, const at::Tensor & input, c10::optional<at::IntArrayRef> output_size, bool align_corners, c10::optional<at::ArrayRef<double>> scale_factors) {

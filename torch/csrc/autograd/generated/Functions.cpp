@@ -4767,7 +4767,21 @@ variable_list LinalgEigBackward::apply(variable_list&& grads) {
   }
   return grad_inputs;
 }
-variable_list TBackward::apply(variable_list&& grads) {
+variable_list TBackward0::apply(variable_list&& grads) {
+
+
+  IndexRangeGenerator gen;
+  auto self_ix = gen.range(1);
+  variable_list grad_inputs(gen.size());
+  auto& grad = grads[0];
+  bool any_grad_defined = any_variable_defined(grads);
+  if (should_compute_output({ self_ix })) {
+    auto grad_result = any_grad_defined ? (grad.t()) : Tensor();
+    copy_range(grad_inputs, self_ix, grad_result);
+  }
+  return grad_inputs;
+}
+variable_list TBackward1::apply(variable_list&& grads) {
 
 
   IndexRangeGenerator gen;
@@ -5988,22 +6002,7 @@ variable_list HardshrinkBackwardBackward::apply(variable_list&& grads) {
   }
   return grad_inputs;
 }
-variable_list HardtanhBackward0::apply(variable_list&& grads) {
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  IndexRangeGenerator gen;
-  auto self_ix = gen.range(1);
-  variable_list grad_inputs(gen.size());
-  auto& grad = grads[0];
-  auto self = self_.unpack();
-  bool any_grad_defined = any_variable_defined(grads);
-  if (should_compute_output({ self_ix })) {
-    auto grad_result = any_grad_defined ? (hardtanh_backward(grad, self, min_val, max_val)) : Tensor();
-    copy_range(grad_inputs, self_ix, grad_result);
-  }
-  return grad_inputs;
-}
-variable_list HardtanhBackward1::apply(variable_list&& grads) {
+variable_list HardtanhBackward::apply(variable_list&& grads) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   IndexRangeGenerator gen;
