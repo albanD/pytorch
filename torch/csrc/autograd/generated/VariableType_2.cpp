@@ -551,7 +551,7 @@ at::Tensor & _fft_c2c_out_out(c10::DispatchKeySet ks, const at::Tensor & self, a
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with _fft_c2c_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with _fft_c2c_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & _fft_c2r_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef dim, int64_t normalization, int64_t last_dim_size, at::Tensor & out) {
@@ -591,7 +591,7 @@ at::Tensor & _fft_c2r_out_out(c10::DispatchKeySet ks, const at::Tensor & self, a
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with _fft_c2r_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with _fft_c2r_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & _fft_r2c_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef dim, int64_t normalization, bool onesided, at::Tensor & out) {
@@ -631,7 +631,7 @@ at::Tensor & _fft_r2c_out_out(c10::DispatchKeySet ks, const at::Tensor & self, a
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with _fft_r2c_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with _fft_r2c_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::vector<at::Tensor> _foreach_addcdiv_Scalar(c10::DispatchKeySet ks, at::TensorList input, at::TensorList tensor1, at::TensorList tensor2, const at::Scalar & value) {
@@ -1990,7 +1990,7 @@ at::Tensor & adaptive_avg_pool3d_backward_out_grad_input(c10::DispatchKeySet ks,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self)), "Trying to use forward AD with adaptive_avg_pool3d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(grad_input)), "Trying to use forward AD with adaptive_avg_pool3d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor add_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, const at::Scalar & alpha) {
@@ -2244,7 +2244,7 @@ at::Tensor & addbmm_out_out(c10::DispatchKeySet ks, const at::Tensor & self, con
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(batch1) || isFwGradDefined(batch2)), "Trying to use forward AD with addbmm_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(batch1) || isFwGradDefined(batch2) || isFwGradDefined(out)), "Trying to use forward AD with addbmm_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor alias(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -2325,7 +2325,7 @@ at::Tensor & all_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with all_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with all_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & amax_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef dim, bool keepdim, at::Tensor & out) {
@@ -2365,7 +2365,7 @@ at::Tensor & amax_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::I
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with amax_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with amax_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & any_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, bool keepdim, at::Tensor & out) {
@@ -2405,7 +2405,7 @@ at::Tensor & any_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with any_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with any_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & argmin_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10::optional<int64_t> dim, bool keepdim, at::Tensor & out) {
@@ -2433,7 +2433,7 @@ at::Tensor & argmin_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10
     AT_ASSERT(out__storage_saved.value().is_alias_of(out_.storage()));
   if (out__impl_saved) AT_ASSERT(out__impl_saved == out_.getIntrusivePtr());
   #endif
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with argmin_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with argmin_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor asin(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -2630,7 +2630,7 @@ at::Tensor & batch_norm_elemt_out_out(c10::DispatchKeySet ks, const at::Tensor &
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(input) || isFwGradDefined(weight) || isFwGradDefined(bias) || isFwGradDefined(mean) || isFwGradDefined(invstd)), "Trying to use forward AD with batch_norm_elemt_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(input) || isFwGradDefined(weight) || isFwGradDefined(bias) || isFwGradDefined(mean) || isFwGradDefined(invstd) || isFwGradDefined(out)), "Trying to use forward AD with batch_norm_elemt_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor,at::Tensor> batch_norm_gather_stats(c10::DispatchKeySet ks, const at::Tensor & input, const at::Tensor & mean, const at::Tensor & invstd, const c10::optional<at::Tensor> & running_mean, const c10::optional<at::Tensor> & running_var, double momentum, double eps, int64_t count) {
@@ -2869,7 +2869,7 @@ at::Tensor & bitwise_left_shift_out_Tensor_out(c10::DispatchKeySet ks, const at:
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with bitwise_left_shift_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with bitwise_left_shift_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & bitwise_left_shift_out_Tensor_Scalar_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & other, at::Tensor & out) {
@@ -2909,7 +2909,7 @@ at::Tensor & bitwise_left_shift_out_Tensor_Scalar_out(c10::DispatchKeySet ks, co
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with bitwise_left_shift_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with bitwise_left_shift_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & bitwise_right_shift_out_Tensor_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, at::Tensor & out) {
@@ -2957,7 +2957,7 @@ at::Tensor & bitwise_right_shift_out_Tensor_out(c10::DispatchKeySet ks, const at
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with bitwise_right_shift_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with bitwise_right_shift_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & bitwise_right_shift_out_Tensor_Scalar_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & other, at::Tensor & out) {
@@ -2997,7 +2997,7 @@ at::Tensor & bitwise_right_shift_out_Tensor_Scalar_out(c10::DispatchKeySet ks, c
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with bitwise_right_shift_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with bitwise_right_shift_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor cat(c10::DispatchKeySet ks, at::TensorList tensors, int64_t dim) {
@@ -3123,7 +3123,7 @@ at::Tensor & ceil_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with ceil_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with ceil_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor col2im(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef output_size, at::IntArrayRef kernel_size, at::IntArrayRef dilation, at::IntArrayRef padding, at::IntArrayRef stride) {
@@ -3199,7 +3199,7 @@ at::Tensor & col2im_backward_out_grad_input(c10::DispatchKeySet ks, const at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output)), "Trying to use forward AD with col2im_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(grad_input)), "Trying to use forward AD with col2im_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor & conj_physical_(c10::DispatchKeySet ks, at::Tensor & self) {
@@ -3359,7 +3359,7 @@ at::Tensor conv_depthwise3d(c10::DispatchKeySet ks, const at::Tensor & self, con
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input, grad_weight, grad_bias ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight)), "Trying to use forward AD with conv_depthwise3d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(grad_input) || isFwGradDefined(grad_weight) || isFwGradDefined(grad_bias)), "Trying to use forward AD with conv_depthwise3d_backward_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(grad_input, grad_weight, grad_bias);
 }
 at::Tensor count_nonzero_dim_IntList(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef dim) {
@@ -3873,7 +3873,7 @@ at::Tensor & div_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with div_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with div_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & div_out_out_mode(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, c10::optional<c10::string_view> rounding_mode, at::Tensor & out) {
@@ -3923,7 +3923,7 @@ at::Tensor & div_out_out_mode(c10::DispatchKeySet ks, const at::Tensor & self, c
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with div_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with div_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor dot(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & tensor) {
@@ -4182,7 +4182,7 @@ at::Tensor & exp2_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with exp2_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with exp2_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & exp_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -4224,7 +4224,7 @@ at::Tensor & exp_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with exp_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with exp_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & eye_out_out(c10::DispatchKeySet ks, int64_t n, at::Tensor & out) {
@@ -4244,6 +4244,7 @@ at::Tensor & eye_out_out(c10::DispatchKeySet ks, int64_t n, at::Tensor & out) {
     AT_ASSERT(out__storage_saved.value().is_alias_of(out_.storage()));
   if (out__impl_saved) AT_ASSERT(out__impl_saved == out_.getIntrusivePtr());
   #endif
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(out)), "Trying to use forward AD with eye_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & eye_out_m_out(c10::DispatchKeySet ks, int64_t n, int64_t m, at::Tensor & out) {
@@ -4263,6 +4264,7 @@ at::Tensor & eye_out_m_out(c10::DispatchKeySet ks, int64_t n, int64_t m, at::Ten
     AT_ASSERT(out__storage_saved.value().is_alias_of(out_.storage()));
   if (out__impl_saved) AT_ASSERT(out__impl_saved == out_.getIntrusivePtr());
   #endif
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(out)), "Trying to use forward AD with eye_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor,at::Tensor> fake_quantize_per_tensor_affine_cachemask(c10::DispatchKeySet ks, const at::Tensor & self, double scale, int64_t zero_point, int64_t quant_min, int64_t quant_max) {
@@ -4381,7 +4383,7 @@ at::Tensor & fmax_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with fmax_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with fmax_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor fmod_Scalar(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & other) {
@@ -4721,7 +4723,7 @@ at::Tensor & fractional_max_pool2d_backward_out_grad_input(c10::DispatchKeySet k
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(indices)), "Trying to use forward AD with fractional_max_pool2d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(indices) || isFwGradDefined(grad_input)), "Trying to use forward AD with fractional_max_pool2d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 ::std::tuple<at::Tensor &,at::Tensor &> fractional_max_pool3d_out_output(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef kernel_size, at::IntArrayRef output_size, const at::Tensor & random_samples, at::Tensor & output, at::Tensor & indices) {
@@ -4777,7 +4779,7 @@ at::Tensor & fractional_max_pool2d_backward_out_grad_input(c10::DispatchKeySet k
   if (grad_fn) {
       rebase_history(flatten_tensor_args( output ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(random_samples)), "Trying to use forward AD with fractional_max_pool3d_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(random_samples) || isFwGradDefined(output) || isFwGradDefined(indices)), "Trying to use forward AD with fractional_max_pool3d_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(output, indices);
 }
 at::Tensor from_file(c10::DispatchKeySet ks, c10::string_view filename, c10::optional<bool> shared, c10::optional<int64_t> size, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
@@ -4913,7 +4915,7 @@ at::Tensor & gcd_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor & 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( a, tau ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with geqrf_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(a) || isFwGradDefined(tau)), "Trying to use forward AD with geqrf_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(a, tau);
 }
 at::Tensor & glu_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, at::Tensor & out) {
@@ -4953,7 +4955,7 @@ at::Tensor & glu_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with glu_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with glu_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & hardsigmoid_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -4993,7 +4995,7 @@ at::Tensor & hardsigmoid_out_out(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with hardsigmoid_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with hardsigmoid_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & hardswish_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -5035,7 +5037,7 @@ at::Tensor & hardswish_out_out(c10::DispatchKeySet ks, const at::Tensor & self, 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with hardswish_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with hardswish_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor hardtanh(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & min_val, const at::Scalar & max_val) {
@@ -5155,7 +5157,7 @@ at::Tensor & hardtanh_backward_out_grad_input(c10::DispatchKeySet ks, const at::
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self)), "Trying to use forward AD with hardtanh_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(grad_input)), "Trying to use forward AD with hardtanh_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor & huber_loss_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & target, int64_t reduction, double delta, at::Tensor & out) {
@@ -5203,7 +5205,7 @@ at::Tensor & huber_loss_out_out(c10::DispatchKeySet ks, const at::Tensor & self,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(target)), "Trying to use forward AD with huber_loss_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(target) || isFwGradDefined(out)), "Trying to use forward AD with huber_loss_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & i0_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -5243,7 +5245,7 @@ at::Tensor & i0_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Ten
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with i0_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with i0_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor im2col(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef kernel_size, at::IntArrayRef dilation, at::IntArrayRef padding, at::IntArrayRef stride) {
@@ -5321,7 +5323,7 @@ at::Tensor & im2col_backward_out_grad_input(c10::DispatchKeySet ks, const at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output)), "Trying to use forward AD with im2col_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(grad_input)), "Trying to use forward AD with im2col_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor int_repr(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -5423,7 +5425,7 @@ at::Tensor isnan(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( values ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with kthvalue_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(values) || isFwGradDefined(indices)), "Trying to use forward AD with kthvalue_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(values, indices);
 }
 at::Tensor l1_loss_backward(c10::DispatchKeySet ks, const at::Tensor & grad_output, const at::Tensor & self, const at::Tensor & target, int64_t reduction) {
@@ -5516,7 +5518,7 @@ at::Tensor & lgamma_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at:
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with lgamma_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with lgamma_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor &,at::Tensor &> linalg_cholesky_ex_out_L(c10::DispatchKeySet ks, const at::Tensor & self, bool check_errors, at::Tensor & L, at::Tensor & info) {
@@ -5564,7 +5566,7 @@ at::Tensor & lgamma_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at:
   if (grad_fn) {
       rebase_history(flatten_tensor_args( L ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with linalg_cholesky_ex_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(L) || isFwGradDefined(info)), "Trying to use forward AD with linalg_cholesky_ex_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(L, info);
 }
 at::Tensor & linalg_det_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -5604,7 +5606,7 @@ at::Tensor & linalg_det_out_out(c10::DispatchKeySet ks, const at::Tensor & self,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with linalg_det_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with linalg_det_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor &,at::Tensor &,at::Tensor &,at::Tensor &> linalg_lstsq_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & b, c10::optional<double> rcond, c10::optional<c10::string_view> driver, at::Tensor & solution, at::Tensor & residuals, at::Tensor & rank, at::Tensor & singular_values) {
@@ -5676,7 +5678,7 @@ at::Tensor & linalg_det_out_out(c10::DispatchKeySet ks, const at::Tensor & self,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( solution, residuals ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(b)), "Trying to use forward AD with linalg_lstsq_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(b) || isFwGradDefined(solution) || isFwGradDefined(residuals) || isFwGradDefined(rank) || isFwGradDefined(singular_values)), "Trying to use forward AD with linalg_lstsq_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(solution, residuals, rank, singular_values);
 }
 ::std::tuple<at::Tensor &,at::Tensor &> linalg_qr_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10::string_view mode, at::Tensor & Q, at::Tensor & R) {
@@ -5724,7 +5726,7 @@ at::Tensor & linalg_det_out_out(c10::DispatchKeySet ks, const at::Tensor & self,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( Q, R ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with linalg_qr_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(Q) || isFwGradDefined(R)), "Trying to use forward AD with linalg_qr_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(Q, R);
 }
 at::Tensor log(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -5809,7 +5811,7 @@ at::Tensor & log1p_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with log1p_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with log1p_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor log2(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -6152,7 +6154,7 @@ at::Tensor & logical_and_out_out(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with logical_and_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with logical_and_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & logical_not_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -6192,7 +6194,7 @@ at::Tensor & logical_not_out_out(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with logical_not_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with logical_not_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & logit_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10::optional<double> eps, at::Tensor & out) {
@@ -6232,7 +6234,7 @@ at::Tensor & logit_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c10:
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with logit_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with logit_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor,at::Tensor> lstsq(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & A) {
@@ -6331,7 +6333,7 @@ at::Tensor & lu_solve_out_out(c10::DispatchKeySet ks, const at::Tensor & self, c
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(LU_data) || isFwGradDefined(LU_pivots)), "Trying to use forward AD with lu_solve_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(LU_data) || isFwGradDefined(LU_pivots) || isFwGradDefined(out)), "Trying to use forward AD with lu_solve_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor,at::Tensor,at::Tensor> lu_unpack(c10::DispatchKeySet ks, const at::Tensor & LU_data, const at::Tensor & LU_pivots, bool unpack_data, bool unpack_pivots) {
@@ -6648,7 +6650,7 @@ at::Tensor & max_pool2d_with_indices_backward_out_grad_input(c10::DispatchKeySet
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self)), "Trying to use forward AD with max_pool2d_with_indices_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(grad_input)), "Trying to use forward AD with max_pool2d_with_indices_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 ::std::tuple<at::Tensor &,at::Tensor &> max_pool3d_with_indices_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef kernel_size, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation, bool ceil_mode, at::Tensor & out, at::Tensor & indices) {
@@ -6696,7 +6698,7 @@ at::Tensor & max_pool2d_with_indices_backward_out_grad_input(c10::DispatchKeySet
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with max_pool3d_with_indices_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out) || isFwGradDefined(indices)), "Trying to use forward AD with max_pool3d_with_indices_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(out, indices);
 }
 at::Tensor max_unpool3d_backward(c10::DispatchKeySet ks, const at::Tensor & grad_output, const at::Tensor & self, const at::Tensor & indices, at::IntArrayRef output_size, at::IntArrayRef stride, at::IntArrayRef padding) {
@@ -7146,7 +7148,7 @@ at::Tensor & mish_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with mish_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with mish_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor mkldnn_max_pool2d(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef kernel_size, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation, bool ceil_mode) {
@@ -7237,7 +7239,7 @@ at::Tensor & mm_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const a
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(mat2)), "Trying to use forward AD with mm_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(mat2) || isFwGradDefined(out)), "Trying to use forward AD with mm_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor multi_margin_loss(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & target, const at::Scalar & p, const at::Scalar & margin, const c10::optional<at::Tensor> & weight, int64_t reduction) {
@@ -7340,7 +7342,7 @@ at::Tensor & multi_margin_loss_backward_out_grad_input(c10::DispatchKeySet ks, c
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(target) || isFwGradDefined(weight)), "Trying to use forward AD with multi_margin_loss_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(target) || isFwGradDefined(weight) || isFwGradDefined(grad_input)), "Trying to use forward AD with multi_margin_loss_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor mv(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & vec) {
@@ -7425,7 +7427,7 @@ at::Tensor & nansum_out_IntList_out(c10::DispatchKeySet ks, const at::Tensor & s
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with nansum_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with nansum_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & narrow_copy_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, int64_t start, int64_t length, at::Tensor & out) {
@@ -7465,7 +7467,7 @@ at::Tensor & narrow_copy_out_out(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with narrow_copy_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with narrow_copy_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor,at::Tensor,at::Tensor> native_layer_norm(c10::DispatchKeySet ks, const at::Tensor & input, at::IntArrayRef normalized_shape, const c10::optional<at::Tensor> & weight, const c10::optional<at::Tensor> & bias, double eps) {
@@ -8319,7 +8321,7 @@ at::Tensor & reflection_pad3d_backward_out_grad_input(c10::DispatchKeySet ks, co
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self)), "Trying to use forward AD with reflection_pad3d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(grad_input)), "Trying to use forward AD with reflection_pad3d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor repeat_interleave_Tensor(c10::DispatchKeySet ks, const at::Tensor & repeats, c10::optional<int64_t> output_size) {
@@ -8473,7 +8475,7 @@ at::Tensor & replication_pad2d_backward_out_grad_input(c10::DispatchKeySet ks, c
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self)), "Trying to use forward AD with replication_pad2d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(grad_input)), "Trying to use forward AD with replication_pad2d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor & replication_pad3d_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::IntArrayRef padding, at::Tensor & out) {
@@ -8513,7 +8515,7 @@ at::Tensor & replication_pad3d_out_out(c10::DispatchKeySet ks, const at::Tensor 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with replication_pad3d_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with replication_pad3d_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor round(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -8702,7 +8704,7 @@ at::Tensor & scatter_out_src_out(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(src)), "Trying to use forward AD with scatter_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(src) || isFwGradDefined(out)), "Trying to use forward AD with scatter_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & scatter_out_value_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, const at::Tensor & index, const at::Scalar & value, at::Tensor & out) {
@@ -8750,7 +8752,7 @@ at::Tensor & scatter_out_value_out(c10::DispatchKeySet ks, const at::Tensor & se
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with scatter_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with scatter_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & scatter_out_reduce_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, const at::Tensor & index, const at::Tensor & src, c10::string_view reduce, at::Tensor & out) {
@@ -8806,7 +8808,7 @@ at::Tensor & scatter_out_reduce_out(c10::DispatchKeySet ks, const at::Tensor & s
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(index) || isFwGradDefined(src)), "Trying to use forward AD with scatter_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(index) || isFwGradDefined(src) || isFwGradDefined(out)), "Trying to use forward AD with scatter_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & scatter_out_value_reduce_out(c10::DispatchKeySet ks, const at::Tensor & self, int64_t dim, const at::Tensor & index, const at::Scalar & value, c10::string_view reduce, at::Tensor & out) {
@@ -8854,7 +8856,7 @@ at::Tensor & scatter_out_value_reduce_out(c10::DispatchKeySet ks, const at::Tens
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(index)), "Trying to use forward AD with scatter_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(index) || isFwGradDefined(out)), "Trying to use forward AD with scatter_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor searchsorted_Tensor(c10::DispatchKeySet ks, const at::Tensor & sorted_sequence, const at::Tensor & self, bool out_int32, bool right) {
@@ -9073,7 +9075,7 @@ at::Tensor & sgn_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with sgn_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with sgn_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & sigmoid_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -9113,7 +9115,7 @@ at::Tensor & sigmoid_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with sigmoid_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with sigmoid_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & sign_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -9153,7 +9155,7 @@ at::Tensor & sign_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with sign_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with sign_out (because it is an out= function) that does not support it.");
   return out;
 }
 ::std::tuple<at::Tensor &,at::Tensor &,at::Tensor &> slow_conv3d_backward_out_grad_input(c10::DispatchKeySet ks, const at::Tensor & grad_output, const at::Tensor & self, const at::Tensor & weight, at::IntArrayRef kernel_size, at::IntArrayRef stride, at::IntArrayRef padding, const at::Tensor & finput, const at::Tensor & fgrad_input, at::Tensor & grad_input, at::Tensor & grad_weight, at::Tensor & grad_bias) {
@@ -9241,7 +9243,7 @@ at::Tensor & sign_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input, grad_weight, grad_bias ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(finput) || isFwGradDefined(fgrad_input)), "Trying to use forward AD with slow_conv3d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(finput) || isFwGradDefined(fgrad_input) || isFwGradDefined(grad_input) || isFwGradDefined(grad_weight) || isFwGradDefined(grad_bias)), "Trying to use forward AD with slow_conv3d_backward_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(grad_input, grad_weight, grad_bias);
 }
 at::Tensor slow_conv_transpose2d(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & weight, at::IntArrayRef kernel_size, const c10::optional<at::Tensor> & bias, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef output_padding, at::IntArrayRef dilation) {
@@ -9376,7 +9378,7 @@ at::Tensor slow_conv_transpose2d(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input, grad_weight, grad_bias ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(columns) || isFwGradDefined(ones)), "Trying to use forward AD with slow_conv_transpose2d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(columns) || isFwGradDefined(ones) || isFwGradDefined(grad_input) || isFwGradDefined(grad_weight) || isFwGradDefined(grad_bias)), "Trying to use forward AD with slow_conv_transpose2d_backward_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(grad_input, grad_weight, grad_bias);
 }
 at::Tensor & slow_conv_transpose3d_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & weight, at::IntArrayRef kernel_size, const c10::optional<at::Tensor> & bias, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef output_padding, at::IntArrayRef dilation, at::Tensor & out) {
@@ -9424,7 +9426,7 @@ at::Tensor & slow_conv_transpose3d_out_out(c10::DispatchKeySet ks, const at::Ten
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(bias)), "Trying to use forward AD with slow_conv_transpose3d_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(bias) || isFwGradDefined(out)), "Trying to use forward AD with slow_conv_transpose3d_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor smooth_l1_loss(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & target, int64_t reduction, double beta) {
@@ -9524,7 +9526,7 @@ at::Tensor & smooth_l1_loss_backward_out_grad_input(c10::DispatchKeySet ks, cons
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(target)), "Trying to use forward AD with smooth_l1_loss_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(self) || isFwGradDefined(target) || isFwGradDefined(grad_input)), "Trying to use forward AD with smooth_l1_loss_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor soft_margin_loss_backward(c10::DispatchKeySet ks, const at::Tensor & grad_output, const at::Tensor & self, const at::Tensor & target, int64_t reduction) {
@@ -9686,7 +9688,7 @@ at::Tensor softplus_backward(c10::DispatchKeySet ks, const at::Tensor & grad_out
   if (grad_fn) {
       rebase_history(flatten_tensor_args( solution ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(A)), "Trying to use forward AD with solve_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(A) || isFwGradDefined(solution) || isFwGradDefined(lu)), "Trying to use forward AD with solve_out (because it is an out= function) that does not support it.");
   return std::forward_as_tuple(solution, lu);
 }
 at::Tensor sparse_mask(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & mask) {
@@ -9799,7 +9801,7 @@ at::Tensor & special_entr_out_out(c10::DispatchKeySet ks, const at::Tensor & sel
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with special_entr_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with special_entr_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & special_erfcx_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -9839,7 +9841,7 @@ at::Tensor & special_erfcx_out_out(c10::DispatchKeySet ks, const at::Tensor & se
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with special_erfcx_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with special_erfcx_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor special_i1e(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -9958,7 +9960,7 @@ at::Tensor & special_zeta_out_out(c10::DispatchKeySet ks, const at::Tensor & sel
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with special_zeta_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with special_zeta_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & special_zeta_out_self_scalar_out(c10::DispatchKeySet ks, const at::Scalar & self, const at::Tensor & other, at::Tensor & out) {
@@ -9998,7 +10000,7 @@ at::Tensor & special_zeta_out_self_scalar_out(c10::DispatchKeySet ks, const at::
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(other)), "Trying to use forward AD with special_zeta_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with special_zeta_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & special_zeta_out_other_scalar_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & other, at::Tensor & out) {
@@ -10038,7 +10040,7 @@ at::Tensor & special_zeta_out_other_scalar_out(c10::DispatchKeySet ks, const at:
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with special_zeta_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with special_zeta_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & sqrt_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -10078,7 +10080,7 @@ at::Tensor & sqrt_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with sqrt_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with sqrt_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & tan_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Tensor & out) {
@@ -10118,7 +10120,7 @@ at::Tensor & tan_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with tan_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with tan_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor tanh(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -10235,7 +10237,7 @@ at::Tensor & tanh_backward_out_grad_input(c10::DispatchKeySet ks, const at::Tens
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(output)), "Trying to use forward AD with tanh_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(output) || isFwGradDefined(grad_input)), "Trying to use forward AD with tanh_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 ::std::tuple<at::Tensor,at::Tensor> thnn_conv_depthwise2d_backward_output_mask(c10::DispatchKeySet ks, const at::Tensor & grad_output, const at::Tensor & self, const at::Tensor & weight, at::IntArrayRef kernel_size, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation, ::std::array<bool,2> output_mask) {
@@ -10341,7 +10343,7 @@ at::Tensor & thnn_conv_depthwise2d_forward_out_out(c10::DispatchKeySet ks, const
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(bias)), "Trying to use forward AD with thnn_conv_depthwise2d_forward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(weight) || isFwGradDefined(bias) || isFwGradDefined(out)), "Trying to use forward AD with thnn_conv_depthwise2d_forward_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & threshold_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & threshold, const at::Scalar & value, at::Tensor & out) {
@@ -10381,7 +10383,7 @@ at::Tensor & threshold_out_out(c10::DispatchKeySet ks, const at::Tensor & self, 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with threshold_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with threshold_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor trace(c10::DispatchKeySet ks, const at::Tensor & self) {
@@ -10453,7 +10455,7 @@ at::Tensor & tril_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int64
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with tril_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with tril_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor triu(c10::DispatchKeySet ks, const at::Tensor & self, int64_t diagonal) {
@@ -10739,7 +10741,7 @@ at::Tensor & upsample_bicubic2d_backward_out_grad_input(c10::DispatchKeySet ks, 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output)), "Trying to use forward AD with upsample_bicubic2d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(grad_input)), "Trying to use forward AD with upsample_bicubic2d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor upsample_nearest3d_backward_vec(c10::DispatchKeySet ks, const at::Tensor & grad_output, c10::optional<at::IntArrayRef> output_size, at::IntArrayRef input_size, c10::optional<at::ArrayRef<double>> scale_factors) {
@@ -10923,7 +10925,7 @@ at::Tensor & upsample_trilinear3d_backward_out_grad_input(c10::DispatchKeySet ks
   if (grad_fn) {
       rebase_history(flatten_tensor_args( grad_input ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output)), "Trying to use forward AD with upsample_trilinear3d_backward_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(grad_output) || isFwGradDefined(grad_input)), "Trying to use forward AD with upsample_trilinear3d_backward_out (because it is an out= function) that does not support it.");
   return grad_input;
 }
 at::Tensor & xlogy_out_OutTensor(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tensor & other, at::Tensor & out) {
@@ -10973,7 +10975,7 @@ at::Tensor & xlogy_out_OutTensor(c10::DispatchKeySet ks, const at::Tensor & self
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other)), "Trying to use forward AD with xlogy_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with xlogy_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & xlogy_out_OutScalar_Self(c10::DispatchKeySet ks, const at::Scalar & self, const at::Tensor & other, at::Tensor & out) {
@@ -11015,7 +11017,7 @@ at::Tensor & xlogy_out_OutScalar_Self(c10::DispatchKeySet ks, const at::Scalar &
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(other)), "Trying to use forward AD with xlogy_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(other) || isFwGradDefined(out)), "Trying to use forward AD with xlogy_out (because it is an out= function) that does not support it.");
   return out;
 }
 at::Tensor & xlogy_out_OutScalar_Other(c10::DispatchKeySet ks, const at::Tensor & self, const at::Scalar & other, at::Tensor & out) {
@@ -11057,7 +11059,7 @@ at::Tensor & xlogy_out_OutScalar_Other(c10::DispatchKeySet ks, const at::Tensor 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( out ), grad_fn);
   }
-  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self)), "Trying to use forward AD with xlogy_out (because it is inplace) that does not support it.");
+  TORCH_CHECK_NOT_IMPLEMENTED(!(isFwGradDefined(self) || isFwGradDefined(out)), "Trying to use forward AD with xlogy_out (because it is an out= function) that does not support it.");
   return out;
 }
 }
