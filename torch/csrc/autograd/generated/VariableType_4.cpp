@@ -703,6 +703,7 @@ at::Tensor & _index_copy_(c10::DispatchKeySet ks, at::Tensor & self, int64_t dim
   auto _any_requires_grad = compute_requires_grad( self, index, source );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<NotImplemented> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<NotImplemented>(new NotImplemented("_index_copy_"), deleteNode);
@@ -1296,6 +1297,8 @@ at::Tensor & abs_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("abs");
@@ -1479,6 +1482,8 @@ at::Tensor addcdiv(c10::DispatchKeySet ks, const at::Tensor & self, const at::Te
   auto& tensor2_ = unpack(tensor2, "tensor2", 2);
   auto _any_requires_grad = compute_requires_grad( self, tensor1, tensor2 );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(tensor1) || isFwGradDefined(tensor2);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<AddcdivBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AddcdivBackward>(new AddcdivBackward(), deleteNode);
@@ -1525,7 +1530,7 @@ at::Tensor addcdiv(c10::DispatchKeySet ks, const at::Tensor & self, const at::Te
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(tensor1) || isFwGradDefined(tensor2)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto tensor1_t_raw = toNonOptFwGrad(tensor1);
@@ -1548,7 +1553,10 @@ at::Tensor & addcdiv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tenso
   auto& tensor2_ = unpack(tensor2, "tensor2", 2);
   auto _any_requires_grad = compute_requires_grad( self, tensor1, tensor2 );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(tensor1) || isFwGradDefined(tensor2);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<AddcdivBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AddcdivBackward>(new AddcdivBackward(), deleteNode);
@@ -1594,7 +1602,7 @@ at::Tensor & addcdiv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tenso
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(tensor1) || isFwGradDefined(tensor2)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto tensor1_t_raw = toNonOptFwGrad(tensor1);
@@ -1603,6 +1611,7 @@ at::Tensor & addcdiv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tenso
       auto tensor2_t_raw = toNonOptFwGrad(tensor2);
       auto tensor2_t = tensor2_t_raw.defined() ? tensor2_t_raw : at::zeros_like(toNonOptTensor(tensor2));
       auto tensor2_p = toNonOptPrimal(tensor2);
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
       auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(self_t + maybe_multiply(tensor1_t / tensor2_p, value) - maybe_multiply(tensor2_t * (tensor1_p / tensor2_p) / tensor2_p, value)) : self_t + maybe_multiply(tensor1_t / tensor2_p, value) - maybe_multiply(tensor2_t * (tensor1_p / tensor2_p) / tensor2_p, value);
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
@@ -1618,6 +1627,8 @@ at::Tensor & addcmul_out_out(c10::DispatchKeySet ks, const at::Tensor & self, co
   auto& out_ = unpack(out, "out", 4);
   auto _any_requires_grad = compute_requires_grad( self, tensor1, tensor2 );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(tensor1) || isFwGradDefined(tensor2);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self, tensor1, tensor2 )) {
     throw_error_out_requires_grad("addcmul");
@@ -1674,6 +1685,8 @@ at::Tensor & addmm_out_out(c10::DispatchKeySet ks, const at::Tensor & self, cons
   auto& out_ = unpack(out, "out", 5);
   auto _any_requires_grad = compute_requires_grad( self, mat1, mat2 );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(mat1) || isFwGradDefined(mat2);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self, mat1, mat2 )) {
     throw_error_out_requires_grad("addmm");
@@ -1729,6 +1742,8 @@ at::Tensor addmv(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
   auto& vec_ = unpack(vec, "vec", 2);
   auto _any_requires_grad = compute_requires_grad( self, mat, vec );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(mat) || isFwGradDefined(vec);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<AddmvBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AddmvBackward>(new AddmvBackward(), deleteNode);
@@ -1775,7 +1790,7 @@ at::Tensor addmv(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(mat) || isFwGradDefined(vec)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto mat_t_raw = toNonOptFwGrad(mat);
@@ -1798,7 +1813,10 @@ at::Tensor & addmv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
   auto& vec_ = unpack(vec, "vec", 2);
   auto _any_requires_grad = compute_requires_grad( self, mat, vec );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(mat) || isFwGradDefined(vec);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<AddmvBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AddmvBackward>(new AddmvBackward(), deleteNode);
@@ -1844,7 +1862,7 @@ at::Tensor & addmv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(mat) || isFwGradDefined(vec)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto mat_t_raw = toNonOptFwGrad(mat);
@@ -1853,6 +1871,7 @@ at::Tensor & addmv_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
       auto vec_t_raw = toNonOptFwGrad(vec);
       auto vec_t = vec_t_raw.defined() ? vec_t_raw : at::zeros_like(toNonOptTensor(vec));
       auto vec_p = toNonOptPrimal(vec);
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
       auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(maybe_multiply(self_t, beta) + maybe_multiply(mat_t.mv(vec_p), alpha) + maybe_multiply(mat_p.mv(vec_t), alpha)) : maybe_multiply(self_t, beta) + maybe_multiply(mat_t.mv(vec_p), alpha) + maybe_multiply(mat_p.mv(vec_t), alpha);
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
@@ -1865,6 +1884,8 @@ at::Tensor angle(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<AngleBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AngleBackward>(new AngleBackward(), deleteNode);
@@ -1891,7 +1912,7 @@ at::Tensor angle(c10::DispatchKeySet ks, const at::Tensor & self) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "angle");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -1984,6 +2005,8 @@ at::Tensor & atan_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::T
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("atan");
@@ -2023,6 +2046,8 @@ at::Tensor atanh(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<AtanhBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AtanhBackward0>(new AtanhBackward0(), deleteNode);
@@ -2048,7 +2073,7 @@ at::Tensor atanh(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -2065,6 +2090,7 @@ at::Tensor & atanh_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<AtanhBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<AtanhBackward1>(new AtanhBackward1(), deleteNode);
@@ -2460,6 +2486,8 @@ at::Tensor clamp_min(c10::DispatchKeySet ks, const at::Tensor & self, const at::
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<ClampMinBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<ClampMinBackward0>(new ClampMinBackward0(), deleteNode);
@@ -2487,7 +2515,7 @@ at::Tensor clamp_min(c10::DispatchKeySet ks, const at::Tensor & self, const at::
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "clamp_min");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -2504,6 +2532,8 @@ at::Tensor clamp_min_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, con
   auto& min_ = unpack(min, "min", 1);
   auto _any_requires_grad = compute_requires_grad( self, min );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(min);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<ClampMinBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<ClampMinBackward1>(new ClampMinBackward1(), deleteNode);
@@ -2538,7 +2568,7 @@ at::Tensor clamp_min_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, con
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "clamp_min");
-  if (isFwGradDefined(self) || isFwGradDefined(min)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -2557,12 +2587,19 @@ at::Tensor & clamp_min_(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<ClampMinBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<ClampMinBackward0>(new ClampMinBackward0(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
     grad_fn->min = min;
   }
   #ifndef NDEBUG
@@ -2583,11 +2620,14 @@ at::Tensor & clamp_min_(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((where(self_p >= min, self_t.conj(), at::scalar_tensor(0., self_t.conj().options()))).conj()) : (where(self_p >= min, self_t.conj(), at::scalar_tensor(0., self_t.conj().options()))).conj();
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((where(original_self_p >= min, original_self_t.conj(), at::scalar_tensor(0., original_self_t.conj().options()))).conj()) : (where(original_self_p >= min, original_self_t.conj(), at::scalar_tensor(0., original_self_t.conj().options()))).conj();
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -2600,12 +2640,19 @@ at::Tensor & clamp_min__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const 
   auto& min_ = unpack(min, "min", 1);
   auto _any_requires_grad = compute_requires_grad( self, min );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(min);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<ClampMinBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<ClampMinBackward1>(new ClampMinBackward1(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self, min ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
     grad_fn->min_ = SavedVariable(min, false);
   }
   #ifndef NDEBUG
@@ -2633,14 +2680,17 @@ at::Tensor & clamp_min__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(min)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
       auto min_t_raw = toNonOptFwGrad(min);
       auto min_t = min_t_raw.defined() ? min_t_raw : at::zeros_like(toNonOptTensor(min));
       auto min_p = toNonOptPrimal(min);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(where(self_p >= min_p, self_t, at::scalar_tensor(0., self_p.options())) + where(self_p < min_p, min_t, at::scalar_tensor(0., self_p.options()))) : where(self_p >= min_p, self_t, at::scalar_tensor(0., self_p.options())) + where(self_p < min_p, min_t, at::scalar_tensor(0., self_p.options()));
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(where(original_self_p >= min_p, original_self_t, at::scalar_tensor(0., original_self_p.options())) + where(original_self_p < min_p, min_t, at::scalar_tensor(0., original_self_p.options()))) : where(original_self_p >= min_p, original_self_t, at::scalar_tensor(0., original_self_p.options())) + where(original_self_p < min_p, min_t, at::scalar_tensor(0., original_self_p.options()));
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -2653,6 +2703,8 @@ at::Tensor & clamp_out_out(c10::DispatchKeySet ks, const at::Tensor & self, cons
   auto& out_ = unpack(out, "out", 3);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("clamp");
@@ -2732,6 +2784,8 @@ at::Tensor clone(c10::DispatchKeySet ks, const at::Tensor & self, c10::optional<
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<CloneBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<CloneBackward>(new CloneBackward(), deleteNode);
@@ -2756,7 +2810,7 @@ at::Tensor clone(c10::DispatchKeySet ks, const at::Tensor & self, c10::optional<
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto result_new_fw_grad = at::clone(self_t, memory_format);
@@ -2773,6 +2827,8 @@ at::Tensor & complex_out_out(c10::DispatchKeySet ks, const at::Tensor & real, co
   auto& out_ = unpack(out, "out", 2);
   auto _any_requires_grad = compute_requires_grad( real, imag );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(real) || isFwGradDefined(imag);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( real, imag )) {
     throw_error_out_requires_grad("complex");
@@ -2868,6 +2924,8 @@ at::Tensor & cos_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at::Te
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("cos");
@@ -2907,6 +2965,8 @@ at::Tensor cosh(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<CoshBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<CoshBackward>(new CoshBackward(), deleteNode);
@@ -2932,7 +2992,7 @@ at::Tensor cosh(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -2948,12 +3008,19 @@ at::Tensor & cosh_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<CoshBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<CoshBackward>(new CoshBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
   }
   #ifndef NDEBUG
   c10::optional<Storage> self__storage_saved =
@@ -2973,11 +3040,14 @@ at::Tensor & cosh_(c10::DispatchKeySet ks, at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((self_t.conj() * self_p.sinh().conj()).conj()) : (self_t.conj() * self_p.sinh().conj()).conj();
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((original_self_t.conj() * original_self_p.sinh().conj()).conj()) : (original_self_t.conj() * original_self_p.sinh().conj()).conj();
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -2990,6 +3060,8 @@ at::Tensor cross(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<CrossBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<CrossBackward>(new CrossBackward(), deleteNode);
@@ -3028,7 +3100,7 @@ at::Tensor cross(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -3296,6 +3368,8 @@ at::Tensor cudnn_grid_sampler(c10::DispatchKeySet ks, const at::Tensor & self, c
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_values = isFwGradDefined(self);
+  (void)_any_has_forward_grad_values;
   std::shared_ptr<CumminBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<CumminBackward>(new CumminBackward(), deleteNode);
@@ -3325,7 +3399,7 @@ at::Tensor cudnn_grid_sampler(c10::DispatchKeySet ks, const at::Tensor & self, c
       set_history(flatten_tensor_args( values ), grad_fn);
   }
   throw_error_for_complex_autograd(values, "cummin");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_values) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto values_new_fw_grad = self_t.gather(dim, indices);
@@ -3344,6 +3418,8 @@ at::Tensor & deg2rad_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("deg2rad");
@@ -3424,6 +3500,8 @@ at::Tensor & digamma_out_out(c10::DispatchKeySet ks, const at::Tensor & self, at
   auto& out_ = unpack(out, "out", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("digamma");
@@ -3561,6 +3639,7 @@ at::Tensor & eq__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<EqBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<EqBackward0>(new EqBackward0(), deleteNode);
@@ -3594,6 +3673,7 @@ at::Tensor & eq__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Ten
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<EqBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<EqBackward1>(new EqBackward1(), deleteNode);
@@ -3827,6 +3907,8 @@ at::Tensor fractional_max_pool3d_backward(c10::DispatchKeySet ks, const at::Tens
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_mantissa = isFwGradDefined(self);
+  (void)_any_has_forward_grad_mantissa;
   std::shared_ptr<FrexpBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<FrexpBackward>(new FrexpBackward(), deleteNode);
@@ -3854,7 +3936,7 @@ at::Tensor fractional_max_pool3d_backward(c10::DispatchKeySet ks, const at::Tens
       set_history(flatten_tensor_args( mantissa ), grad_fn);
   }
   throw_error_for_complex_autograd(mantissa, "frexp");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_mantissa) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto mantissa_new_fw_grad = self_t / exponent.exp2();
@@ -3874,6 +3956,8 @@ at::Tensor & gather_out_out(c10::DispatchKeySet ks, const at::Tensor & self, int
   auto& out_ = unpack(out, "out", 4);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self )) {
     throw_error_out_requires_grad("gather");
@@ -3971,6 +4055,7 @@ at::Tensor & ge__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<GeBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<GeBackward0>(new GeBackward0(), deleteNode);
@@ -4004,6 +4089,7 @@ at::Tensor & ge__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Ten
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<GeBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<GeBackward1>(new GeBackward1(), deleteNode);
@@ -4125,6 +4211,7 @@ at::Tensor & geometric_(c10::DispatchKeySet ks, at::Tensor & self, double p, c10
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<GeometricBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<GeometricBackward>(new GeometricBackward(), deleteNode);
@@ -4345,6 +4432,7 @@ at::Tensor & gt__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<GtBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<GtBackward0>(new GtBackward0(), deleteNode);
@@ -4378,6 +4466,7 @@ at::Tensor & gt__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Ten
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<GtBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<GtBackward1>(new GtBackward1(), deleteNode);
@@ -4741,6 +4830,8 @@ at::Tensor hypot(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<HypotBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<HypotBackward>(new HypotBackward(), deleteNode);
@@ -4779,7 +4870,7 @@ at::Tensor hypot(c10::DispatchKeySet ks, const at::Tensor & self, const at::Tens
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "hypot");
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -4802,7 +4893,13 @@ at::Tensor & hypot_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<HypotBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<HypotBackward>(new HypotBackward(), deleteNode);
@@ -4811,7 +4908,8 @@ at::Tensor & hypot_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
       grad_fn->other_ = SavedVariable(other, false);
     }
     if (grad_fn->should_compute_output(0)) {
-      grad_fn->self_ = SavedVariable(self.clone(), false);
+      if (!original_self.has_value()) original_self = self.clone();
+      grad_fn->self_ = SavedVariable(original_self.value(), false);
     }
   }
   #ifndef NDEBUG
@@ -4839,14 +4937,17 @@ at::Tensor & hypot_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tensor 
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
       auto other_t_raw = toNonOptFwGrad(other);
       auto other_t = other_t_raw.defined() ? other_t_raw : at::zeros_like(toNonOptTensor(other));
       auto other_p = toNonOptPrimal(other);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(self_t * self_p / self + other_t * other_p / self) : self_t * self_p / self + other_t * other_p / self;
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(original_self_t * original_self_p / self_p + other_t * other_p / self_p) : original_self_t * original_self_p / self_p + other_t * other_p / self_p;
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -4957,12 +5058,14 @@ at::Tensor & igammac_(c10::DispatchKeySet ks, at::Tensor & self, const at::Tenso
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<IgammacBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<IgammacBackward>(new IgammacBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self, other ));
     if (grad_fn->should_compute_output(1)) {
-      grad_fn->self_ = SavedVariable(self.clone(), false);
+      if (!original_self.has_value()) original_self = self.clone();
+      grad_fn->self_ = SavedVariable(original_self.value(), false);
     }
     if (grad_fn->should_compute_output(1)) {
       grad_fn->other_ = SavedVariable(other, false);
@@ -5002,7 +5105,10 @@ at::Tensor & index_copy_(c10::DispatchKeySet ks, at::Tensor & self, int64_t dim,
   auto& source_ = unpack(source, "source", 3);
   auto _any_requires_grad = compute_requires_grad( self, source );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(source);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<IndexCopyBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<IndexCopyBackward>(new IndexCopyBackward(), deleteNode);
@@ -5046,7 +5152,7 @@ at::Tensor & index_copy_(c10::DispatchKeySet ks, at::Tensor & self, int64_t dim,
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(source)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto source_t_raw = toNonOptFwGrad(source);
@@ -5064,7 +5170,10 @@ at::Tensor & index_fill__int_Scalar(c10::DispatchKeySet ks, at::Tensor & self, i
   auto& index_ = unpack(index, "index", 2);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<IndexFillBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<IndexFillBackward0>(new IndexFillBackward0(), deleteNode);
@@ -5097,7 +5206,7 @@ at::Tensor & index_fill__int_Scalar(c10::DispatchKeySet ks, at::Tensor & self, i
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_new_fw_grad = self_t.index_fill_(dim, index, 0);
@@ -5114,7 +5223,10 @@ at::Tensor & index_fill__int_Tensor(c10::DispatchKeySet ks, at::Tensor & self, i
   auto& value_ = unpack(value, "value", 3);
   auto _any_requires_grad = compute_requires_grad( self, value );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(value);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<IndexFillBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<IndexFillBackward1>(new IndexFillBackward1(), deleteNode);
@@ -5154,7 +5266,7 @@ at::Tensor & index_fill__int_Tensor(c10::DispatchKeySet ks, at::Tensor & self, i
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(value)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto value_t_raw = toNonOptFwGrad(value);
@@ -5493,6 +5605,7 @@ at::Tensor & le__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<LeBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<LeBackward0>(new LeBackward0(), deleteNode);
@@ -5526,6 +5639,7 @@ at::Tensor & le__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Ten
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<LeBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<LeBackward1>(new LeBackward1(), deleteNode);
@@ -5600,6 +5714,7 @@ at::Tensor & leaky_relu_(c10::DispatchKeySet ks, at::Tensor & self, const at::Sc
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<LeakyReluBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<LeakyReluBackward1>(new LeakyReluBackward1(), deleteNode);
@@ -5684,6 +5799,8 @@ at::Tensor & lerp_out_Scalar_out(c10::DispatchKeySet ks, const at::Tensor & self
   auto& out_ = unpack(out, "out", 3);
   auto _any_requires_grad = compute_requires_grad( self, end );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(end);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self, end )) {
     throw_error_out_requires_grad("lerp");
@@ -5733,6 +5850,8 @@ at::Tensor & lerp_out_Tensor_out(c10::DispatchKeySet ks, const at::Tensor & self
   auto& out_ = unpack(out, "out", 3);
   auto _any_requires_grad = compute_requires_grad( self, end, weight );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(end) || isFwGradDefined(weight);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self, end, weight )) {
     throw_error_out_requires_grad("lerp");
@@ -6050,6 +6169,8 @@ at::Tensor log10(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Log10Backward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<Log10Backward>(new Log10Backward(), deleteNode);
@@ -6075,7 +6196,7 @@ at::Tensor log10(c10::DispatchKeySet ks, const at::Tensor & self) {
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -6091,12 +6212,19 @@ at::Tensor & log10_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<Log10Backward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<Log10Backward>(new Log10Backward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
   }
   #ifndef NDEBUG
   c10::optional<Storage> self__storage_saved =
@@ -6116,11 +6244,14 @@ at::Tensor & log10_(c10::DispatchKeySet ks, at::Tensor & self) {
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((self_t.conj() / (self_p.conj() * 2.3025850929940456)).conj()) : (self_t.conj() / (self_p.conj() * 2.3025850929940456)).conj();
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_((original_self_t.conj() / (original_self_p.conj() * 2.3025850929940456)).conj()) : (original_self_t.conj() / (original_self_p.conj() * 2.3025850929940456)).conj();
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -6259,6 +6390,7 @@ at::Tensor & lt__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sca
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<LtBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<LtBackward0>(new LtBackward0(), deleteNode);
@@ -6292,6 +6424,7 @@ at::Tensor & lt__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Ten
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<LtBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<LtBackward1>(new LtBackward1(), deleteNode);
@@ -6332,6 +6465,8 @@ at::Tensor masked_select(c10::DispatchKeySet ks, const at::Tensor & self, const 
   auto& mask_ = unpack(mask, "mask", 1);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<MaskedSelectBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MaskedSelectBackward>(new MaskedSelectBackward(), deleteNode);
@@ -6365,7 +6500,7 @@ at::Tensor masked_select(c10::DispatchKeySet ks, const at::Tensor & self, const 
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto result_new_fw_grad = at::masked_select(self_t, mask);
@@ -6510,6 +6645,8 @@ at::Tensor & max_unpool2d_out_out(c10::DispatchKeySet ks, const at::Tensor & sel
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_values = isFwGradDefined(self);
+  (void)_any_has_forward_grad_values;
   std::shared_ptr<MinBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MinBackward0>(new MinBackward0(), deleteNode);
@@ -6540,7 +6677,7 @@ at::Tensor & max_unpool2d_out_out(c10::DispatchKeySet ks, const at::Tensor & sel
       set_history(flatten_tensor_args( values ), grad_fn);
   }
   throw_error_for_complex_autograd(values, "min");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_values) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto values_new_fw_grad = gather_with_keepdimed_indices(self_t, dim, indices, keepdim);
@@ -6558,6 +6695,8 @@ at::Tensor min(c10::DispatchKeySet ks, const at::Tensor & self) {
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<MinBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MinBackward1>(new MinBackward1(), deleteNode);
@@ -6584,7 +6723,7 @@ at::Tensor min(c10::DispatchKeySet ks, const at::Tensor & self) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "min");
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -6604,6 +6743,8 @@ at::Tensor minimum(c10::DispatchKeySet ks, const at::Tensor & self, const at::Te
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<MinimumBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MinimumBackward>(new MinimumBackward(), deleteNode);
@@ -6638,7 +6779,7 @@ at::Tensor minimum(c10::DispatchKeySet ks, const at::Tensor & self, const at::Te
       set_history(flatten_tensor_args( result ), grad_fn);
   }
   throw_error_for_complex_autograd(result, "minimum");
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -6975,6 +7116,8 @@ at::Tensor mul_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at:
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<MulBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MulBackward0>(new MulBackward0(), deleteNode);
@@ -7014,7 +7157,7 @@ at::Tensor mul_Tensor(c10::DispatchKeySet ks, const at::Tensor & self, const at:
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
@@ -7033,6 +7176,8 @@ at::Tensor mul_Scalar(c10::DispatchKeySet ks, const at::Tensor & self, const at:
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<MulBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MulBackward1>(new MulBackward1(), deleteNode);
@@ -7059,7 +7204,7 @@ at::Tensor mul_Scalar(c10::DispatchKeySet ks, const at::Tensor & self, const at:
   if (grad_fn) {
       set_history(flatten_tensor_args( result ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_result) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto result_new_fw_grad = self_t * other;
@@ -7075,13 +7220,20 @@ at::Tensor & mul__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Te
   auto& other_ = unpack(other, "other", 1);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
+  if (_any_has_forward_grad_self) {
+    original_self = self.clone();
+  }
   std::shared_ptr<MulBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MulBackward0>(new MulBackward0(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self, other ));
     if (grad_fn->should_compute_output(1)) {
-      grad_fn->self_ = SavedVariable(self.clone(), false);
+      if (!original_self.has_value()) original_self = self.clone();
+      grad_fn->self_ = SavedVariable(original_self.value(), false);
     }
     grad_fn->other_scalar_type = other.scalar_type();
     grad_fn->self_scalar_type = self.scalar_type();
@@ -7114,14 +7266,17 @@ at::Tensor & mul__Tensor(c10::DispatchKeySet ks, at::Tensor & self, const at::Te
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self) || isFwGradDefined(other)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
       auto self_p = toNonOptPrimal(self);
       auto other_t_raw = toNonOptFwGrad(other);
       auto other_t = other_t_raw.defined() ? other_t_raw : at::zeros_like(toNonOptTensor(other));
       auto other_p = toNonOptPrimal(other);
-      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(other_t * self_p + self_t * other_p) : other_t * self_p + self_t * other_p;
+      auto original_self_t_raw = toNonOptFwGrad(original_self);
+      auto original_self_t = original_self_t_raw.defined() ? original_self_t_raw : at::zeros_like(toNonOptTensor(original_self));
+      auto original_self_p = toNonOptPrimal(original_self);
+      auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(other_t * original_self_p + original_self_t * other_p) : other_t * original_self_p + original_self_t * other_p;
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
         self._set_fw_grad(self_new_fw_grad, /* level */ 0, /* is_inplace_op */ true);
@@ -7133,7 +7288,10 @@ at::Tensor & mul__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sc
   auto& self_ = unpack(self, "self", 0);
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_self = isFwGradDefined(self);
+  (void)_any_has_forward_grad_self;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<MulBackward1> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<MulBackward1>(new MulBackward1(), deleteNode);
@@ -7159,9 +7317,10 @@ at::Tensor & mul__Scalar(c10::DispatchKeySet ks, at::Tensor & self, const at::Sc
   if (grad_fn) {
       rebase_history(flatten_tensor_args( self ), grad_fn);
   }
-  if (isFwGradDefined(self)) {
+  if (_any_has_forward_grad_self) {
       auto self_t_raw = toNonOptFwGrad(self);
       auto self_t = self_t_raw.defined() ? self_t_raw : at::zeros_like(toNonOptTensor(self));
+      self_t = GradMode::is_enabled() ? self_t.clone() : self_t;
       auto self_new_fw_grad = self_t_raw.defined() ? self_t_raw.copy_(self_t * other) : self_t * other;
       if (self_new_fw_grad.defined()) {
         // The hardcoded 0 here will need to be updated once we support multiple levels.
@@ -7531,6 +7690,7 @@ at::Tensor & neg_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<NegBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<NegBackward>(new NegBackward(), deleteNode);
@@ -7843,6 +8003,7 @@ at::Tensor & normal_(c10::DispatchKeySet ks, at::Tensor & self, double mean, dou
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<NormalBackward0> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<NormalBackward0>(new NormalBackward0(), deleteNode);
@@ -8193,11 +8354,13 @@ at::Tensor & renorm_(c10::DispatchKeySet ks, at::Tensor & self, const at::Scalar
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<RenormBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<RenormBackward>(new RenormBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
     grad_fn->p = p;
     grad_fn->dim = dim;
     grad_fn->maxnorm = maxnorm;
@@ -8270,6 +8433,7 @@ const at::Tensor & resize_as_sparse_(c10::DispatchKeySet ks, const at::Tensor & 
   auto _any_requires_grad = compute_requires_grad( self, the_template );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<NotImplemented> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<NotImplemented>(new NotImplemented("resize_as_sparse_"), deleteNode);
@@ -8640,11 +8804,13 @@ at::Tensor & sinc_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<SincBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<SincBackward>(new SincBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
   }
   #ifndef NDEBUG
   c10::optional<Storage> self__storage_saved =
@@ -8704,11 +8870,13 @@ at::Tensor & sinh_(c10::DispatchKeySet ks, at::Tensor & self) {
   auto _any_requires_grad = compute_requires_grad( self );
   (void)_any_requires_grad;
   check_inplace(self, _any_requires_grad);
+  c10::optional<at::Tensor> original_self;
   std::shared_ptr<SinhBackward> grad_fn;
   if (_any_requires_grad) {
     grad_fn = std::shared_ptr<SinhBackward>(new SinhBackward(), deleteNode);
     grad_fn->set_next_edges(collect_next_edges( self ));
-    grad_fn->self_ = SavedVariable(self.clone(), false);
+    if (!original_self.has_value()) original_self = self.clone();
+    grad_fn->self_ = SavedVariable(original_self.value(), false);
   }
   #ifndef NDEBUG
   c10::optional<Storage> self__storage_saved =
@@ -9895,6 +10063,8 @@ at::Tensor & vdot_out_out(c10::DispatchKeySet ks, const at::Tensor & self, const
   auto& out_ = unpack(out, "out", 2);
   auto _any_requires_grad = compute_requires_grad( self, other );
   (void)_any_requires_grad;
+  auto _any_has_forward_grad_result = isFwGradDefined(self) || isFwGradDefined(other);
+  (void)_any_has_forward_grad_result;
   std::shared_ptr<Node> grad_fn;
   if (compute_requires_grad( self, other )) {
     throw_error_out_requires_grad("vdot");
