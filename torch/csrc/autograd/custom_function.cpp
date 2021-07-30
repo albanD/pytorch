@@ -26,7 +26,77 @@ Variable VariableInfo::zeros(at::OptionalDeviceGuard& device_guard) const {
   }
 }
 
-std::vector<c10::optional<Variable>> _wrap_outputs(const variable_list &input_vars,
+void _handle_forward_mode_AD(const variable_list &inputs,
+  const optional_variable_list &outputs,
+  const std::unordered_set<at::TensorImpl*> &non_differentiable,
+  const std::unordered_set<at::TensorImpl*> &dirty_inputs,
+  _jvp_t jvp_user_function) {
+
+  // TODO handle multiple levels here
+  uint64_t level = 0;
+
+  const auto num_inputs = inputs.size();
+  const auto num_outputs = outputs.size();
+
+  bool any_input_has_grad = false;
+  variable_list input_grads;
+  std::vector<uint64_t> grad_versions;
+
+  // Extract the input's forward gradients
+  for (const auto i : c10::irange(num_inputs)) {
+    const auto& inp = inputs[i];
+    if (!inp.defined()) {
+      continue;
+    }
+    const auto& fw_grad = inp._fw_grad(level);
+    if (fw_grad.defined()) {
+      if (!any_input_has_grad) {
+        any_input_has_grad = true;
+        input_grads.resize(num_inputs);
+        grad_versions.resize(num_inputs);
+      }
+      input_grads[i] = fw_grad;
+      grad_versions[i] = fw_grad._version();
+    }
+  }
+
+  // If no input has forward grad, nothing to do here
+  if (!any_input_has_grad) {
+    return;
+  }
+
+  auto forward_grads = jvp_user_function(inputs, input_grads);
+
+
+  // NOLINTNEXTLINE(cppcoreguidelines-init-variables)
+  const auto num_forward_grads = forward_grads.size();
+  // contrary to backward mode, we don't allow returning too many inputs
+  TORCH_CHECK(num_forward_grads == num_outputs, "Function's jvp returned "
+              "an invalid number of of forward gradients (expected ", num_outputs,
+              " but got ", num_forward_grads, ")");
+
+  for (const auto i : c10::irange(num_outputs)) {
+    const auto& out = outputs[i].has_value()? outputs[i].value() : at::Tensor();
+    const auto& out_grad = forward_grads[i];
+    if (!out.defined()) {
+      TORCH_CHECK(!out_grad.defined(), "Function's jvp returned a gradient at position ", i, ", but "
+                  " the corresponding forward output is not a Tensor");
+      continue;
+    }
+
+    const auto out_tensor_impl = out.unsafeGetTensorImpl();
+    const bool is_modified = dirty_inputs.count(out_tensor_impl) > 0;
+
+    if (is_modified) {
+      TORCH_CHECK(out_grad._version() != grad_versions[i], "nah")
+    }
+
+
+    out._set_fw_grad(out_grad, level, /* is_inplace_op */ is_modified);
+  }
+}
+
+optional_variable_list _handle_backward_mode_AD(const variable_list &input_vars,
   const std::unordered_set<at::TensorImpl*> &non_differentiable,
   const std::unordered_set<at::TensorImpl*> &dirty_inputs,
   const at::ArrayRef<c10::optional<Variable>> raw_outputs,
@@ -63,7 +133,8 @@ std::vector<c10::optional<Variable>> _wrap_outputs(const variable_list &input_va
       // Here, `y` requires_grad (!).
     } else if (is_modified) {
       if (var.is_leaf() && var.requires_grad()) {
-        throw std::runtime_error("a leaf Variable that requires grad has been used in an in-place operation.");
+        std::cout << output_nr << "bahahsh" << var.data_ptr() << std::endl;
+        TORCH_CHECK(false, "a leaf Variable that requires grad has been used in an in-place operation.");
       }
       // No need to mark as modified Tensors that are not inputs.
       if (!is_input) {
@@ -173,6 +244,22 @@ std::vector<c10::optional<Variable>> _wrap_outputs(const variable_list &input_va
                 "Some elements marked as dirty during the forward method were not returned as output. The"
                 " inputs that are modified inplace must all be outputs of the Function.");
   }
+
+  return outputs;
+}
+
+optional_variable_list _wrap_outputs(const variable_list &input_vars,
+  const std::unordered_set<at::TensorImpl*> &non_differentiable,
+  const std::unordered_set<at::TensorImpl*> &dirty_inputs,
+  const at::ArrayRef<c10::optional<Variable>> raw_outputs,
+  const std::shared_ptr<Node> &cdata,
+  _jvp_t jvp_user_function) {
+
+  auto outputs = _handle_backward_mode_AD(input_vars, non_differentiable, dirty_inputs, raw_outputs, cdata);
+
+  // This must happen after the backward handling as we expect the computations happening here to track
+  // backward mode gradients.
+  _handle_forward_mode_AD(input_vars, outputs, non_differentiable, dirty_inputs, jvp_user_function);
 
   return outputs;
 }

@@ -5231,7 +5231,11 @@ for shape in [(1,), ()]:
         b = torch.ones(2, requires_grad=True)
 
         # No extra inplace
-        c = MyAdder.apply(a.clone(), b)
+        print(hex(a.data_ptr()))
+        print(hex(b.data_ptr()))
+        addd = a.clone()
+        print(addd)
+        c = MyAdder.apply(addd, b)
         c.sum().backward()
         self.assertTrue(bw_called[0] == 1)
 
@@ -5476,12 +5480,42 @@ for shape in [(1,), ()]:
             def forward(ctx, foo):
                 return foo.clone()
 
+        class BadBw2(Function):
+            @staticmethod
+            def forward(ctx, foo):
+                return foo.clone()
+
+            @staticmethod
+            def backward(ctx, foo):
+                return foo
+
+            @staticmethod
+            def vjp(ctx, foo):
+                return foo
+
+        class BadJvp(Function):
+            @staticmethod
+            def forward(ctx, foo):
+                return foo.clone()
+
+
         inp = torch.rand(1, requires_grad=True)
         with self.assertRaisesRegex(NotImplementedError, "must implement the forward"):
             BadFw.apply(inp)
 
-        with self.assertRaisesRegex(RuntimeError, "must implement the backward"):
+        with self.assertRaisesRegex(RuntimeError, "must implement either the backward"):
             BadBw.apply(inp).sum().backward()
+
+        with self.assertRaisesRegex(RuntimeError, "Implementing both 'backward' and 'vjp'"):
+            BadBw2.apply(inp).sum().backward()
+
+        with self.assertRaisesRegex(RuntimeError, "must implement the jvp function"):
+            with fwAD.dual_level():
+                d = fwAD.make_dual(inp, torch.rand_like(inp))
+                res = BadJvp.apply(d)
+
+    def test_custom_function_forward_mode_inplace_checks(self):
+    def test_custom_function_forward_mode_view_checks(self):
 
     def test_custom_function_local_inplace(self):
         class MyFn(torch.autograd.Function):
@@ -8108,7 +8142,7 @@ class TestAutogradDeviceType(TestCase):
 
         if inp.is_cuda and not TEST_WITH_ROCM:
             # Assert that we have good error message around unsupported CuDNN double backward
-            # NB: we trigger double backward using .backward() instead of autograd.grad due to
+        # NB: we trigger double backward using .backward() instead of autograd.grad due to
             # https://github.com/pytorch/pytorch/issues/37874
             with torch.backends.cudnn.flags(enabled=True):
                 result = gradcheckfunc(inp)

@@ -9,12 +9,19 @@
 
 namespace torch { namespace autograd {
 
-TORCH_API std::vector<c10::optional<Variable>> _wrap_outputs(
+using optional_variable_list = std::vector<c10::optional<Variable>>;
+struct AutogradContext;
+
+// using _jvp_t = variable_list (*)(variable_list);
+using _jvp_t = std::function<variable_list(variable_list, variable_list)>;
+
+TORCH_API optional_variable_list _wrap_outputs(
   const variable_list &input_vars,
   const std::unordered_set<at::TensorImpl*> &non_differentiable,
   const std::unordered_set<at::TensorImpl*> &dirty_inputs,
   const at::ArrayRef<c10::optional<Variable>> raw_outputs,
-  const std::shared_ptr<Node> &cdata);
+  const std::shared_ptr<Node> &cdata,
+  _jvp_t jvp_user_function);
 
 TORCH_API void check_variable_result(const Variable& original,
   const Variable& result, std::string hook_name);
@@ -22,6 +29,8 @@ TORCH_API void check_variable_result(const Variable& original,
 // Get the return type of the forward function of the custom Function class X
 template<typename X, typename... Args>
 using forward_t = decltype(X::forward(nullptr, std::declval<Args>()...));
+using vjp_t = variable_list (*)(AutogradContext*, variable_list);
+using jvp_t = variable_list (*)(AutogradContext*, variable_list);
 
 /// To use custom autograd operations, implement a Function subclass with
 /// static forward and backward functions:
@@ -263,12 +272,17 @@ auto Function<T>::apply(Args&&... args) -> std::enable_if_t<std::is_same<X,T>::v
     outputs = T::forward(&node->ctx_, std::forward<Args>(args)...);
   }
 
+  _jvp_t jvp_fn = [](variable_list inputs, variable_list gI) -> variable_list {
+    TORCH_CHECK(false, "jvp is not implemented for the c++ API of custom Function yet");
+  };
+
   auto wrapped_outputs = _wrap_outputs(
     input_vars,
     node->ctx_.get_non_differentiable(),
     node->ctx_.get_and_bump_dirty(),
     to_optional(outputs),
-    is_executable ? node : nullptr);
+    is_executable ? node : nullptr,
+    jvp_fn);
 
   node->output_info_.reserve(wrapped_outputs.size());
   for (auto& output : wrapped_outputs) {

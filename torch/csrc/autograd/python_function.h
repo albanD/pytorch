@@ -37,7 +37,6 @@ struct PyNode : public Node {
   // allow to do one time initialization.
   // see discussion in https://github.com/pytorch/pytorch/pull/34845
   // Follow up issue: https://github.com/pytorch/pytorch/issues/35006
-  void throw_python_error();
   void release_variables() override;
   std::string name() const override;
   bool is_traceable() override;
