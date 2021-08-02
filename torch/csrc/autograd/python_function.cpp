@@ -304,7 +304,8 @@ static std::unordered_set<at::TensorImpl*> _parse_non_differentiable(THPFunction
 // do in this case.  After this method is run, t2var is extended with
 // mappings for output tensors as well.
 static void _wrap_outputs(const std::shared_ptr<PyNode>& cdata, THPFunction *self,
-    const variable_list &input_vars, PyObject *raw_output, PyObject *outputs, bool is_executable)
+    const variable_list &input_vars, const variable_list& actual_inputs, PyObject *raw_output,
+    PyObject *outputs, bool is_executable)
 {
   auto cdata_if_executable = is_executable ? cdata : nullptr;
   Py_ssize_t num_outputs = PyTuple_GET_SIZE(raw_output);
@@ -332,18 +333,25 @@ static void _wrap_outputs(const std::shared_ptr<PyNode>& cdata, THPFunction *sel
     pybind11::gil_scoped_acquire gil;
 
     // Massage a C++ variable_list into a Python arguments tuple
-    auto num_inputs = grad_inputs.size();
+    // Making sure to introduce the proper None for non-Tensor inputs
+    auto num_inputs = self->is_variable_input.size();
     THPObjectPtr pyInputs(PyTuple_New(num_inputs));
     if (!pyInputs) throw_python_error();
+    auto var_input_idx = 0;
     for (const auto i : c10::irange(num_inputs)) {
       // NOLINTNEXTLINE(cppcoreguidelines-init-variables)
       PyObject* input;
-      if (grad_inputs[i].defined() || !self->materialize_grads) {
-        input = THPVariable_Wrap(grad_inputs[i]);
+      if (self->is_variable_input[i]) {
+        if (grad_inputs[i].defined() || !self->materialize_grads) {
+          input = THPVariable_Wrap(grad_inputs[i]);
+        } else {
+          input = THPVariable_Wrap(at::zeros_like(inputs[i]));
+        }
+        if (!input) throw_python_error();
       } else {
-        input = THPVariable_Wrap(at::zeros_like(inputs[i]));
+        Py_INCREF(Py_None);
+        input = Py_None;
       }
-      if (!input) throw_python_error();
       PyTuple_SET_ITEM(pyInputs.get(), i, input);
     }
 
@@ -374,8 +382,8 @@ static void _wrap_outputs(const std::shared_ptr<PyNode>& cdata, THPFunction *sel
   };
 
   // Wrap only the tensor outputs.
-  auto wrapped_outputs = _wrap_outputs(input_vars, non_differentiable, dirty_inputs, raw_output_vars,
-                                       cdata_if_executable, jvp_user_function);
+  auto wrapped_outputs = _wrap_outputs(input_vars, actual_inputs, non_differentiable, dirty_inputs,
+                                       raw_output_vars, cdata_if_executable, jvp_user_function);
 
   for(const auto i : c10::irange(num_outputs)) {
     PyObject* obj = PyTuple_GetItem(raw_output, i);
@@ -482,7 +490,7 @@ std::pair<UnpackedInput, InputFlags> unpack_input(PyObject *args) {
       Py_INCREF(Py_False);
       PyTuple_SET_ITEM(flags.needs_input_grad.get(), i, Py_False);
     } else {
-      const auto& tensor = THPVariable_Unpack(arg);
+      auto tensor = THPVariable_Unpack(arg);
       unpacked.input_vars.push_back(tensor);
       PyObject* needs_grad = tensor.requires_grad() ? Py_True : Py_False;
       Py_INCREF(needs_grad);
@@ -567,7 +575,7 @@ static void _trace_post_record(
 
 PyObject* process_outputs(PyObject *op_obj, const std::shared_ptr<PyNode>& cdata,
                           THPFunction* grad_fn, const UnpackedInput& unpacked,
-                          PyObject *inputs, THPObjectPtr&& raw_output, bool is_executable,
+                          const variable_list& actual_inputs, THPObjectPtr&& raw_output, bool is_executable,
                           torch::jit::Node* node) {
   bool unpack_output = ensure_tuple(raw_output);
 
@@ -588,7 +596,7 @@ PyObject* process_outputs(PyObject *op_obj, const std::shared_ptr<PyNode>& cdata
   }
 
   bool is_inplace = static_cast<bool>(grad_fn->dirty_tensors);
-  _wrap_outputs(cdata, grad_fn, unpacked.input_vars, raw_output, outputs, is_executable);
+  _wrap_outputs(cdata, grad_fn, unpacked.input_vars, actual_inputs, raw_output, outputs, is_executable);
   _trace_post_record(node, op_obj, unpacked.input_vars, outputs, is_inplace, unpack_output);
 
   // It is important that creating the SavedVariables happen after the output wrapping as the
@@ -657,7 +665,7 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
   ctx->needs_input_grad = input_info.needs_input_grad.release();
   ctx->is_variable_input = std::move(input_info.is_variable_input);
 
-  // Disable backward AD while we prepare the outputs
+  variable_list actual_tensor_inputs;
   THPObjectPtr tensor_outputs;
   {
     AutoGradMode grad_mode(false);
@@ -672,12 +680,16 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
       PyObject *arg = PyTuple_GET_ITEM(unpacked_input.input_tuple.get(), i);
 
       // Unpack forward mode AD gradients
+      // This runs in no-grad mode as this change will be part of the manual backward formula.
+      // This still creates a view and so we need to take it into account when considering
+      // view and inplace tracking
       if (THPVariable_Check(arg)) {
-        // TODO: unpack all levels when multi-level is added
-        const auto& arg_tensor = THPVariable_Unpack(arg);
-        if (arg_tensor._fw_grad(/* level */ 0).defined()) {
-          arg = THPVariable_Wrap(arg_tensor._fw_primal(/*level */ 0));
+        at::Tensor tensor = THPVariable_Unpack(arg);
+        if (tensor._fw_grad(/* level */ 0).defined()) {
+          tensor = tensor._fw_primal(/*level */ 0);
+          arg = THPVariable_Wrap(tensor);
         }
+        actual_tensor_inputs.push_back(tensor);
       }
 
       Py_INCREF(arg);
@@ -691,7 +703,7 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
     if (!tensor_outputs) return nullptr;
   }
 
-  return process_outputs(cls, cdata, ctx, unpacked_input, inputs, std::move(tensor_outputs),
+  return process_outputs(cls, cdata, ctx, unpacked_input, actual_tensor_inputs, std::move(tensor_outputs),
                          is_executable, node);
   END_HANDLE_TH_ERRORS
 }

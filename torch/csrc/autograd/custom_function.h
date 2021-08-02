@@ -17,6 +17,7 @@ using _jvp_t = std::function<variable_list(variable_list, variable_list)>;
 
 TORCH_API optional_variable_list _wrap_outputs(
   const variable_list &input_vars,
+  const variable_list &actual_inputs,
   const std::unordered_set<at::TensorImpl*> &non_differentiable,
   const std::unordered_set<at::TensorImpl*> &dirty_inputs,
   const at::ArrayRef<c10::optional<Variable>> raw_outputs,
@@ -277,6 +278,7 @@ auto Function<T>::apply(Args&&... args) -> std::enable_if_t<std::is_same<X,T>::v
   };
 
   auto wrapped_outputs = _wrap_outputs(
+    input_vars,
     input_vars,
     node->ctx_.get_non_differentiable(),
     node->ctx_.get_and_bump_dirty(),

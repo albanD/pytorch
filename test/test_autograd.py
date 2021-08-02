@@ -5514,8 +5514,68 @@ for shape in [(1,), ()]:
                 d = fwAD.make_dual(inp, torch.rand_like(inp))
                 res = BadJvp.apply(d)
 
-    def test_custom_function_forward_mode_inplace_checks(self):
     def test_custom_function_forward_mode_view_checks(self):
+        class ViewFn(Function):
+            @staticmethod
+            def forward(ctx, foo, bad):
+                ctx.bad = bad
+                ctx.size = foo.size()
+                return foo.narrow(0, 0, 2)
+
+            @staticmethod
+            def vjp(ctx, gO):
+                gI = gO.new_zeros(ctx.size)
+                gI.narrow(0, 0, 2).copy_(gO)
+                return gI, None
+
+            @staticmethod
+            def jvp(ctx, gI, _):
+                res = gI.narrow(0, 0, 2)
+                if ctx.bad:
+                    # Break the view in the gradients!
+                    res = res.clone()
+                return res
+
+        inp = torch.rand(4, 4, dtype=torch.double, requires_grad=True)
+
+        gradcheck(ViewFn.apply, (inp, False), check_forward_ad=True)
+
+        # Should fail!
+        gradcheck(ViewFn.apply, (inp, True), check_forward_ad=True)
+
+
+    def test_custom_function_forward_mode_inplace_checks(self):
+        class InplaceFn(Function):
+            @staticmethod
+            def forward(ctx, foo, bad):
+                ctx.mark_dirty(foo)
+                ctx.bad = bad
+                foo.mul_(2)
+                return foo
+
+            @staticmethod
+            def vjp(ctx, gO):
+                return 2 * gO, None
+
+            @staticmethod
+            def jvp(ctx, gI, _):
+                if ctx.bad:
+                    # Don't do the change inplace
+                    return 2 * gI
+                else:
+                    gI.mul_(2)
+                    return gI
+
+        inp = torch.rand(4, 4, dtype=torch.double, requires_grad=True)
+
+        def test_fn(inp, bad):
+            inp = inp.clone()
+            return InplaceFn.apply(inp, bad)
+
+        gradcheck(test_fn, (inp, False), check_forward_ad=True)
+
+        # Should fail!
+        gradcheck(test_fn, (inp, True), check_forward_ad=True)
 
     def test_custom_function_local_inplace(self):
         class MyFn(torch.autograd.Function):
