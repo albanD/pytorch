@@ -278,13 +278,6 @@ optional_variable_list _handle_backward_mode_AD(const variable_list& inputs,
     bool is_differentiable = cdata && non_differentiable.count(out_tensor_impl) == 0
                               && isDifferentiableType(var.scalar_type());
 
-    if (is_input) {
-      // If forward grad was involved, the output here is not actually the Tensor given by the user
-      // as the forward gradients unpacking created a new view. Make sure that we modify the autograd
-      // metadata on the original input
-      var = inputs[inputs_mapping[out_tensor_impl]];
-    }
-
     if (cdata) {
       auto output_nr = cdata->add_input_metadata(var);
       AT_ASSERT(i == (int)output_nr);
