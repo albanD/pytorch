@@ -686,7 +686,8 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
       if (THPVariable_Check(arg)) {
         at::Tensor tensor = THPVariable_Unpack(arg);
         if (tensor._fw_grad(/* level */ 0).defined()) {
-          tensor = tensor._fw_primal(/*level */ 0);
+          // Don't use _fw_primal here to make sure that we keep tracking views
+          tensor = tensor._fw_primal(/* level */ 0);
           arg = THPVariable_Wrap(tensor);
         }
         actual_tensor_inputs.push_back(tensor);

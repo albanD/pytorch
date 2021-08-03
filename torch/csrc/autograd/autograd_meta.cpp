@@ -128,7 +128,7 @@ void AutogradMeta::set_fw_grad(const Variable& new_grad_, const Variable& self, 
                 "of the original Tensor, this is not supported. Tensor is of size ", self.sizes(), " while the given "
                 "forward gradient is of size ", new_grad_.sizes(), ".");
 
-    if (is_inplace_op && is_view_) {
+    if (is_view_) {
       auto this_view_meta = static_cast<DifferentiableViewMeta*>(this);
 
       // For inplace ops on a Tensor that does not already have a forward grad and is a view, we propagate

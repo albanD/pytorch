@@ -5540,7 +5540,6 @@ for shape in [(1,), ()]:
 
         gradcheck(ViewFn.apply, (inp, False), check_forward_ad=True)
 
-        # Should fail!
         gradcheck(ViewFn.apply, (inp, True), check_forward_ad=True)
 
 
@@ -5574,8 +5573,8 @@ for shape in [(1,), ()]:
 
         gradcheck(test_fn, (inp, False), check_forward_ad=True)
 
-        # Should fail!
-        gradcheck(test_fn, (inp, True), check_forward_ad=True)
+        with self.assertRaisesRegex(RuntimeError, "inplace custom Function is not modifying the forward mode gradients inplace"):
+            gradcheck(test_fn, (inp, True), check_forward_ad=True)
 
     def test_custom_function_local_inplace(self):
         class MyFn(torch.autograd.Function):
