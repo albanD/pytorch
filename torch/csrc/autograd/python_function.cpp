@@ -665,37 +665,24 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
   ctx->needs_input_grad = input_info.needs_input_grad.release();
   ctx->is_variable_input = std::move(input_info.is_variable_input);
 
+  // Prepend ctx to input_tuple, in preparation for static method call
+  auto num_args = PyTuple_GET_SIZE(inputs);
+  THPObjectPtr ctx_input_tuple(PyTuple_New(num_args + 1));
+  if (!ctx_input_tuple) return nullptr;
+  Py_INCREF(ctx);
+  PyTuple_SET_ITEM(ctx_input_tuple.get(), 0, (PyObject*)ctx);
+  for (const auto i : c10::irange(num_args)) {
+    PyObject *arg = PyTuple_GET_ITEM(unpacked_input.input_tuple.get(), i);
+
+    Py_INCREF(arg);
+    PyTuple_SET_ITEM(ctx_input_tuple.get(), i + 1, arg);
+  }
+
   variable_list actual_tensor_inputs;
   THPObjectPtr tensor_outputs;
   {
-    AutoGradMode grad_mode(false);
-
-    // Prepend ctx to input_tuple, in preparation for static method call
-    auto num_args = PyTuple_GET_SIZE(inputs);
-    THPObjectPtr ctx_input_tuple(PyTuple_New(num_args + 1));
-    if (!ctx_input_tuple) return nullptr;
-    Py_INCREF(ctx);
-    PyTuple_SET_ITEM(ctx_input_tuple.get(), 0, (PyObject*)ctx);
-    for (const auto i : c10::irange(num_args)) {
-      PyObject *arg = PyTuple_GET_ITEM(unpacked_input.input_tuple.get(), i);
-
-      // Unpack forward mode AD gradients
-      // This runs in no-grad mode as this change will be part of the manual backward formula.
-      // This still creates a view and so we need to take it into account when considering
-      // view and inplace tracking
-      if (THPVariable_Check(arg)) {
-        at::Tensor tensor = THPVariable_Unpack(arg);
-        if (tensor._fw_grad(/* level */ 0).defined()) {
-          // Don't use _fw_primal here to make sure that we keep tracking views
-          tensor = tensor._fw_primal(/* level */ 0);
-          arg = THPVariable_Wrap(tensor);
-        }
-        actual_tensor_inputs.push_back(tensor);
-      }
-
-      Py_INCREF(arg);
-      PyTuple_SET_ITEM(ctx_input_tuple.get(), i + 1, arg);
-    }
+    at::AutoGradMode grad_mode(false);
+    at::AutoFwGradMode fw_grad_mode(false);
 
     // Call forward
     THPObjectPtr forward_fn(PyObject_GetAttrString(cls, "forward"));

@@ -38,6 +38,7 @@ class TORCH_API ThreadLocalState {
 #if !defined(CAFFE2_IS_XPLAT_BUILD) && !defined(C10_MOBILE)
   bool keep_grad_mode_ = true;
   bool grad_mode_enabled_;
+  bool fw_grad_mode_enabled_;
 #endif
 
   // TLS for InferenceMode

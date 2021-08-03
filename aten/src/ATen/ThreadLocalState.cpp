@@ -19,6 +19,7 @@ ThreadLocalState::ThreadLocalState(bool keep_grad_mode)
   if (keep_grad_mode_) {
     grad_mode_enabled_ = GradMode::is_enabled();
   }
+  fw_grad_mode_enabled_ = FwGradMode::is_enabled();
 #endif
   bumped_record_all_functions_ = at::checkRecordAllFunctions();
 }
@@ -30,6 +31,7 @@ void ThreadLocalState::setThreadLocalState(
   if (state.keep_grad_mode_) {
     GradMode::set_enabled(state.grad_mode_enabled_);
   }
+  FwGradMode::set_enabled(state.fw_grad_mode_enabled_);
 #endif
 
   at::set_record_function_tls_(state.rf_tls_);
