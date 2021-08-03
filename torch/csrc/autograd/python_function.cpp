@@ -304,7 +304,7 @@ static std::unordered_set<at::TensorImpl*> _parse_non_differentiable(THPFunction
 // do in this case.  After this method is run, t2var is extended with
 // mappings for output tensors as well.
 static void _wrap_outputs(const std::shared_ptr<PyNode>& cdata, THPFunction *self,
-    const variable_list &input_vars, const variable_list& actual_inputs, PyObject *raw_output,
+    const variable_list &input_vars, PyObject *raw_output,
     PyObject *outputs, bool is_executable)
 {
   auto cdata_if_executable = is_executable ? cdata : nullptr;
@@ -382,7 +382,7 @@ static void _wrap_outputs(const std::shared_ptr<PyNode>& cdata, THPFunction *sel
   };
 
   // Wrap only the tensor outputs.
-  auto wrapped_outputs = _wrap_outputs(input_vars, actual_inputs, non_differentiable, dirty_inputs,
+  auto wrapped_outputs = _wrap_outputs(input_vars, non_differentiable, dirty_inputs,
                                        raw_output_vars, cdata_if_executable, jvp_user_function);
 
   for(const auto i : c10::irange(num_outputs)) {
@@ -575,7 +575,7 @@ static void _trace_post_record(
 
 PyObject* process_outputs(PyObject *op_obj, const std::shared_ptr<PyNode>& cdata,
                           THPFunction* grad_fn, const UnpackedInput& unpacked,
-                          const variable_list& actual_inputs, THPObjectPtr&& raw_output, bool is_executable,
+                          THPObjectPtr&& raw_output, bool is_executable,
                           torch::jit::Node* node) {
   bool unpack_output = ensure_tuple(raw_output);
 
@@ -596,7 +596,7 @@ PyObject* process_outputs(PyObject *op_obj, const std::shared_ptr<PyNode>& cdata
   }
 
   bool is_inplace = static_cast<bool>(grad_fn->dirty_tensors);
-  _wrap_outputs(cdata, grad_fn, unpacked.input_vars, actual_inputs, raw_output, outputs, is_executable);
+  _wrap_outputs(cdata, grad_fn, unpacked.input_vars, raw_output, outputs, is_executable);
   _trace_post_record(node, op_obj, unpacked.input_vars, outputs, is_inplace, unpack_output);
 
   // It is important that creating the SavedVariables happen after the output wrapping as the
@@ -678,7 +678,6 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
     PyTuple_SET_ITEM(ctx_input_tuple.get(), i + 1, arg);
   }
 
-  variable_list actual_tensor_inputs;
   THPObjectPtr tensor_outputs;
   {
     at::AutoGradMode grad_mode(false);
@@ -691,7 +690,7 @@ PyObject *THPFunction_apply(PyObject *cls, PyObject *inputs)
     if (!tensor_outputs) return nullptr;
   }
 
-  return process_outputs(cls, cdata, ctx, unpacked_input, actual_tensor_inputs, std::move(tensor_outputs),
+  return process_outputs(cls, cdata, ctx, unpacked_input, std::move(tensor_outputs),
                          is_executable, node);
   END_HANDLE_TH_ERRORS
 }

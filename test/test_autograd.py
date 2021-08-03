@@ -5515,6 +5515,13 @@ for shape in [(1,), ()]:
                 res = BadJvp.apply(d)
 
     def test_custom_function_forward_mode_view_checks(self):
+        bad_to_error = {
+            "ok": None,
+            "not_a_view": "jvp is not returning a view",
+            "not_a_view_of_inp": "jvp is not returning a view",
+            "not_a_view_of_inp_base": "jvp is not returning a view",
+        }
+
         class ViewFn(Function):
             @staticmethod
             def forward(ctx, foo, bad):
@@ -5531,16 +5538,28 @@ for shape in [(1,), ()]:
             @staticmethod
             def jvp(ctx, gI, _):
                 res = gI.narrow(0, 0, 2)
-                if ctx.bad:
+                if ctx.bad != "ok":
                     # Break the view in the gradients!
                     res = res.clone()
+                if ctx.bad in ["not_a_view_of_inp", "not_a_view_of_inp_base"]:
+                    # Result should be a view, just of the wrong thing
+                    res = res.view_as(res)
                 return res
 
         inp = torch.rand(4, 4, dtype=torch.double, requires_grad=True)
 
-        gradcheck(ViewFn.apply, (inp, False), check_forward_ad=True)
 
-        gradcheck(ViewFn.apply, (inp, True), check_forward_ad=True)
+        for bad, msg in bad_to_error.items():
+            def test_fn(inp):
+                if bad == "not_a_view_of_inp_base":
+                    inp = inp.view_as(inp)
+                return ViewFn.apply(inp, bad)
+
+            if msg is None:
+                gradcheck(test_fn, inp, check_forward_ad=True)
+            else:
+                with self.assertRaisesRegex(RuntimeError, msg):
+                    gradcheck(test_fn, inp, check_forward_ad=True)
 
 
     def test_custom_function_forward_mode_inplace_checks(self):
