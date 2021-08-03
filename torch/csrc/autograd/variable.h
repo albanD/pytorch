@@ -595,6 +595,12 @@ public:
     return shared_view_info_ ? backward_info_.value() : forward_info_.value();
   }
 
+  // For internal use ONLY for view chain in custom Function
+  void _set_fw_view(ViewInfo&& fw_view_info) {
+    shared_view_info_ = false;
+    forward_info_ = fw_view_info;
+  }
+
   DifferentiableViewMeta(at::TensorImpl* self_impl, c10::optional<ViewInfo> backward_info,
     c10::optional<ViewInfo> forward_info, bool shared_view_info, CreationMeta creation_meta=CreationMeta::DEFAULT);
 };

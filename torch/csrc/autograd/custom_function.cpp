@@ -27,7 +27,6 @@ Variable VariableInfo::zeros(at::OptionalDeviceGuard& device_guard) const {
 }
 
 void _handle_forward_mode_AD(const variable_list &inputs,
-  const variable_list& actual_inputs,
   std::unordered_map<at::TensorImpl*, size_t> inputs_mapping,
   const at::ArrayRef<c10::optional<Variable>> raw_outputs,
   const optional_variable_list &outputs,
@@ -45,23 +44,11 @@ void _handle_forward_mode_AD(const variable_list &inputs,
   variable_list input_grads;
   std::vector<int64_t> grad_versions;
   std::vector<at::TensorImpl*> grad_impls;
-  std::unordered_map<at::TensorImpl*, size_t> input_bases;
 
   auto init_tracked_info = [&] () {
     input_grads.resize(num_inputs);
     grad_versions.resize(num_inputs);
     grad_impls.resize(num_inputs);
-
-    std::cout<<"Inputs: " << std::endl;
-    for (const auto i: c10::irange(num_inputs)) {
-      const auto& inp = actual_inputs[i];
-      std::cout<<"  " << inp.unsafeGetTensorImpl() << std::endl;
-      if (inp.is_view() && impl::get_view_autograd_meta(inp) && impl::get_view_autograd_meta(inp)->has_fw_view()) {
-        input_bases.emplace(impl::get_view_autograd_meta(inp)->get_forward_view().base_.unsafeGetTensorImpl(), i);
-      } else {
-        input_bases.emplace(inp.unsafeGetTensorImpl(), i);
-      }
-    }
   };
 
   // Extract the input's forward gradients
@@ -99,7 +86,6 @@ void _handle_forward_mode_AD(const variable_list &inputs,
 
   for (const auto i : c10::irange(num_outputs)) {
     const auto& out = outputs[i].has_value()? outputs[i].value() : at::Tensor();
-    std::cout<<"outputs: " << out.unsafeGetTensorImpl() << std::endl;
     const auto& out_grad = forward_grads[i];
     if (!out.defined()) {
       TORCH_CHECK(!out_grad.defined(), "Function's jvp returned a gradient at position ", i, ", but "
@@ -130,42 +116,71 @@ void _handle_forward_mode_AD(const variable_list &inputs,
         inputs[inp_idx]._set_fw_grad(out_grad, level, /* is_inplace_op */ true);
       }
     } else {
-      out._set_fw_grad(out_grad, level, /* is_inplace_op */ false);
-
       // At this point, outputs[i] cannot be one of the input (raw_outputs[i] might be but was changed by the backward code)
       // Check if it is a view of any of the input or has the same base as any input
-      // Also if the gradient is a view, the setter above should have ensured that it match the base's grad
-      if (out.is_view() && impl::get_view_autograd_meta(out) && impl::get_view_autograd_meta(out)->has_fw_view()) {
-        const auto& out_base = impl::get_view_autograd_meta(out)->get_forward_view().base_;
-        if (input_bases.count(out_base.unsafeGetTensorImpl())) {
-          const auto inp_idx = input_bases[out_base.unsafeGetTensorImpl()];
+      std::cout<<"is not inplace" << std::endl;
+      if (out.is_view() && impl::get_view_autograd_meta(out)->has_fw_view()) {
+      std::cout<<"out is fw view" << std::endl;
+        const auto& out_partial_base = impl::get_view_autograd_meta(out)->get_forward_view().base_;
+        // Actual inputs are NEVER forward differentiable views (because of the _fw_primal we do before entering the forward)
+        if (inputs_mapping.count(out_partial_base.unsafeGetTensorImpl())) {
+      std::cout<<"out is fw view of an actual input" << std::endl;
+          // Go over the _fw_primal call that we did earlier
+          const auto input_idx = inputs_mapping[out_partial_base.unsafeGetTensorImpl()];
+          const auto& matching_input = inputs[input_idx];
 
-          std::cout << "out_base: " << out_base.unsafeGetTensorImpl() << std::endl;
+          std::cout << matching_input._fw_grad(level) << std::endl;
 
-          const auto& out_grad = out._fw_grad(level);
-          std::cout << "out_grad: " << out_grad.unsafeGetTensorImpl() << std::endl;
-          TORCH_CHECK(out_grad.is_view() && impl::get_view_autograd_meta(out_grad)->has_fw_view(),
-                      "A custom Function is returning a view but the jvp is not returning a view.");
-          const auto& out_grad_base = impl::get_view_autograd_meta(out_grad)->get_forward_view().base_;
-          std::cout << "out_grad_base: " << out_grad_base.unsafeGetTensorImpl() << std::endl;
-
-          const auto& out_base_grad = out_base._fw_grad(level);
-          TORCH_INTERNAL_ASSERT(out_base_grad.defined());
-          std::cout << "out_base_grad: " << out_base_grad.unsafeGetTensorImpl() << std::endl;
-          c10::TensorImpl* out_base_grad_base;
-          if (out_base_grad.is_view() && impl::get_view_autograd_meta(out_base_grad) && impl::get_view_autograd_meta(out_base_grad)->has_fw_view()) {
-            out_base_grad_base = impl::get_view_autograd_meta(out_base_grad)->get_forward_view().base_.unsafeGetTensorImpl();
+          const auto& out_view_info = impl::get_view_autograd_meta(out)->get_forward_view();
+          if (matching_input.is_view() && impl::get_view_autograd_meta(matching_input)->has_fw_view()) {
+            const auto& view_info = impl::get_view_autograd_meta(matching_input)->get_forward_view();
+      std::cout<<"inpt base" <<view_info.base_ << std::endl;
+      std::cout<<"inpt base grad" <<view_info.base_._fw_grad(level) << std::endl;
+            impl::get_view_autograd_meta(out)->_set_fw_view(view_info.chain(matching_input, out, out_view_info.has_view_fn()? out_view_info.view_fn() : nullptr));
+      std::cout<<"Doing chaining" << std::endl;
           } else {
-            out_base_grad_base = out_base_grad.unsafeGetTensorImpl();
+            // Just chain with the _fw_primal here
+            impl::get_view_autograd_meta(out)->_set_fw_view(ViewInfo(matching_input, out_view_info.has_view_fn()? out_view_info.view_fn() : nullptr));
+      std::cout<<"No chaining" << std::endl;
           }
-          std::cout << "out_base_grad_base: " << out_base_grad_base << std::endl;
 
-          TORCH_CHECK(out_base_grad_base == out_grad_base.unsafeGetTensorImpl(),
-                      "A custom Function is returning a view but the jvp is not returning a view of the given grad input.");
+          const auto& out_base = impl::get_view_autograd_meta(out)->get_forward_view().base_;
+          const auto& out_base_grad = out_base._fw_grad(level);
+
+          // If the base has a forward grad, the user should have returned a view of that Tensor
+          if (out_base_grad.defined()) {
+      std::cout<<"out base grad defined" << std::endl;
+            c10::TensorImpl* out_base_grad_base;
+            if (out_base_grad.is_view() && impl::get_view_autograd_meta(out_base_grad)->has_fw_view()) {
+              out_base_grad_base = impl::get_view_autograd_meta(out_base_grad)->get_forward_view().base_.unsafeGetTensorImpl();
+            } else {
+              out_base_grad_base = out_base_grad.unsafeGetTensorImpl();
+            }
+
+            const auto& out_grad = out._fw_grad(level);
+            TORCH_CHECK(out_grad.is_view() && impl::get_view_autograd_meta(out_grad)->has_fw_view(),
+                        "A custom Function is returning a view but the jvp is not returning a view.");
+            const auto& out_grad_base = impl::get_view_autograd_meta(out_grad)->get_forward_view().base_;
+
+            TORCH_CHECK(out_base_grad_base == out_grad_base.unsafeGetTensorImpl(),
+                        "A custom Function is returning a view but the jvp is not returning a view of the given grad input.");
+          } else {
+      std::cout<<"out base grad not defined" << std::endl;
+            // We have a view op where the input didn't had a forward grad but the user returned one for the output
+            // To ensure that we maintain the view/inplace constraints, we consider this as an inplace op
+            // This case CANNOT happen in codegen as all view ops are 1 to 1 mapping between Tensors and so the output
+            // of the view cannot have a forward grad if the base does not.
+            out._set_fw_grad(out_grad, level, /* is_inplace_op */ true);
+
+            // Make sure that the base's gradient has been properly updated
+            TORCH_INTERNAL_ASSERT(out_base._fw_grad(level).defined());
+            return;
+          }
+
         }
       }
-      auto is_view_of_input = out.is_view() ? input_bases.count(out.unsafeGetTensorImpl()) > 0 : false;
 
+      out._set_fw_grad(out_grad, level, /* is_inplace_op */ false);
     }
   }
 }
@@ -341,7 +356,7 @@ optional_variable_list _wrap_outputs(const variable_list &input_vars,
 
   // This must happen after the backward handling as we expect the computations happening here to track
   // backward mode gradients.
-  _handle_forward_mode_AD(input_vars, actual_inputs, inputs, raw_outputs, outputs, non_differentiable, dirty_inputs, jvp_user_function);
+  _handle_forward_mode_AD(input_vars, inputs, raw_outputs, outputs, non_differentiable, dirty_inputs, jvp_user_function);
 
   return outputs;
 }
