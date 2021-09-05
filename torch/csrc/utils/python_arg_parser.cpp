@@ -231,6 +231,7 @@ auto handle_torch_function_no_python_arg_parser(const std::vector<py::handle> &o
   for (auto &arg : overloaded_args) {
     // NOLINTNEXTLINE(clang-diagnostic-writable-strings)
     py::object torch_function = PyObject_FastGetAttrString(arg.ptr(), torch_function_name);
+  TORCH_CHECK(!PyErr_Occurred(), "calling user func");
     ret = py::reinterpret_steal<py::object>(PyObject_CallFunctionObjArgs(torch_function.ptr(), torch_api_function, py_types.ptr(), args, kwargs, NULL));
     if (ret.ptr() != Py_NotImplemented) {
       // Return the reference to the result. This also covers the case where ret

@@ -308,7 +308,7 @@ static bool THPVariable_tryResurrect(THPVariable* self) {
 
   // There are other C++ owners of the tensor.  Flip ownership
   // so that C++ owns this Python object, and cancel deallocation.
-  TORCH_INTERNAL_ASSERT(!tensor.unsafeGetTensorImpl()->owns_pyobj());
+  // TORCH_INTERNAL_ASSERT(!tensor.unsafeGetTensorImpl()->owns_pyobj());
 
   tensor.unsafeGetTensorImpl()->set_owns_pyobj(true);
 
@@ -1286,6 +1286,12 @@ static void clear_slots(PyTypeObject* type, PyObject* self) {
 // on subclasses.  It's never valid to construct a THPVariable so it's not
 // necessary to implement the dealloc for that case
 void THPVariable_subclass_dealloc(PyObject* self) {
+  // if (PyErr_Occurred()) {
+  //   std::cout<<"so?"<<std::endl;
+  //   PyErr_Print();
+  //   std::cout<<"Ah ok!"<<std::endl;
+  // }
+  TORCH_CHECK(!PyErr_Occurred(), "subclass dealloc bad");
   if (THPVariable_tryResurrect((THPVariable*)self))
     return;
 

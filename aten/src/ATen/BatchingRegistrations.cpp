@@ -460,6 +460,12 @@ Tensor view_batching_rule(const Tensor& self, IntArrayRef size) {
   return self_physical.getPhysicalToLogicalMap().apply(result);
 }
 
+Tensor detach_batching_rule(const Tensor& self) {
+  auto self_physical = MultiBatchVmapTransform::logicalToPhysical(self);
+  auto result = self_physical.tensor().detach();
+  return self_physical.getPhysicalToLogicalMap().apply(result);
+}
+
 Tensor view_as_complex_batching_rule(const Tensor& self) {
   // guard against the user passing in a batch of scalar tensors with batch
   // size equal to 2.
@@ -1115,6 +1121,7 @@ TORCH_LIBRARY_IMPL(aten, Batched, m) {
   m.impl("unfold", unfold_batching_rule);
   m.impl("unsqueeze", unsqueeze_batching_rule);
   m.impl("view", view_batching_rule);
+  m.impl("detach", detach_batching_rule);
   m.impl("view_as", native::view_as); // composite wrt autograd
 
   // clamp operations
