@@ -1167,6 +1167,11 @@ static void clear_slots(PyTypeObject* type, PyObject* self) {
 // on subclasses.  It's never valid to construct a THPVariable so it's not
 // necessary to implement the dealloc for that case
 void THPVariable_subclass_dealloc(PyObject* self) {
+    PyObject *et, *ev, *etb;
+
+    /* avoid clobbering any pending exception */
+    PyErr_Fetch(&et, &ev, &etb);
+  
   if (THPVariable_tryResurrect((THPVariable*)self))
     return;
 
