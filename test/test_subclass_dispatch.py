@@ -47,8 +47,9 @@ class WrapperTensor(torch.Tensor):
                                    f"property {el} but this is not allowed as such change would "
                                    "not be reflected to c++ callers.")
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.__dict__})"
+    def __repr__(self, extra=None):
+        extra_str = ", ".join(extra) if extra else ""
+        return f"{self.__class__.__name__}({self.__dict__}{extra_str})"
 
 # General wrapper
 class GeneralWrapper(WrapperTensor):
@@ -143,9 +144,8 @@ class BackwardADTrackingTensor(GeneralWrapper):
         return cls._delegate_call(func, types, args, kwargs)
 
     def __repr__(self):
-        s = super().__repr__()
-        grad_str = self.grad_fn if self.grad_fn else self.requires_grad
-        return s + f"with({grad_str})"
+        grad_str = f"grad_fn={self.grad_fn}" if self.grad_fn else f"requires_grad={self.requires_grad}"
+        return super().__repr__([grad_str,])
 
 # Only the wrapped Tensor has autograd meta.
 # This is necessary because if the wrapper has some, it would be handled before
@@ -198,33 +198,64 @@ def safe_print(t):
     else:
         print(t)
 
+class BatchedTempWrapperTensor(GeneralWrapper):
+    @classmethod
+    def wrap(cls, extra_args, extra_kwargs, e):
+        return e
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        if not all(issubclass(t, BatchedTempWrapperTensor) for t in types):
+            print(f"Inverted BatchedTempWrapperTensor order!: {types}")
+            return NotImplemented
+
+        return cls._delegate_call(func, types, args, kwargs)
+
+class BatchedTrackingTensor(GeneralWrapper):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
+        assert len(args) == 0
+        assert len(kwargs) == 0 or (len(kwargs) == 1 and "requires_grad" in kwargs)
+        assert not kwargs.get("requires_grad", False)
+
+    @classmethod
+    def unwrap(cls, e):
+        return e.elem if (isinstance(e, cls) or isinstance(e, BatchedTempWrapperTensor)) else e
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        if not all(issubclass(t, BatchedTrackingTensor) or issubclass(t, BatchedTempWrapperTensor) for t in types):
+            raise RuntimeError(f"Bad types for tracking Tensor!: {types}")
+
+        return cls._delegate_call(func, types, args, kwargs)
+
+    def __repr__(self):
+        extra = [f"batched={is_batched(self)}",]
+        if is_batched:
+            extra.append(f"batch_size={unpack_batched(self, self._dim).size()}")
+        return super().__repr__(extra)
+
 class BatchedTensor(GeneralWrapper):
     _dim = -1
 
-    @staticmethod
-    def __new__(cls, elem, *args, **kwargs):
-        # Make a subclass that doesn't have the autograd key and should not
-        # be involved with autograd
-        if is_batched(elem):
-            base = torch._remove_batch_dim(elem, cls._dim, -1, cls._dim)
-        else:
-            base = elem
-        base = base.select(cls._dim, 0)
-        r = torch.Tensor._make_subclass(cls, base.to('meta'), elem.requires_grad)
-        r.elem = elem
-        return cls._post_new(r, args, kwargs)
-
-    @staticmethod
-    def _post_new(obj, args, kwargs):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
+        assert isinstance(elem, BatchedTrackingTensor)
+        assert not is_batched(elem)
         assert len(args) == 0
         assert len(kwargs) == 0
-        assert obj._dim != -1
-        if not is_batched(obj.elem):
-            obj.elem = torch._add_batch_dim(obj.elem, obj._dim, 0)
-        return obj
+        assert self._dim != -1
+        self.elem = torch._add_batch_dim(self.elem, self._dim, 0)
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}(is batched? {is_batched(self)}/{is_batched(self.elem)}, {self.size(), self.elem.size()}, {unpack_batched(self.elem, self._dim).size()})"
+    @classmethod
+    def unwrap(cls, e):
+        # Special logic here where we want to unwrap all of the Tensor of this type
+        # while wrapping everything else to make sure they don't "polute" our vmap
+        # handling
+        if not isinstance(e, torch.Tensor):
+            return e
+        else:
+            return e.elem if isinstance(e, cls) else BatchedTempWrapperTensor(e)
 
     @classmethod
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
@@ -323,10 +354,10 @@ class TestSubclassDispatch(TestCase):
 
     def test_batched(self):
         Vmap0 = type("Vmap0", (BatchedTensor,), {"_dim": 0})
-        # foo = Vmap0(torch.rand(2, 1))
-        # bar = Vmap0(torch.rand(2, 1))
+        foo = Vmap0(BatchedTrackingTensor(torch.rand(2, 1)))
+        # bar = Vmap0(BatchedTrackingTensor(torch.rand(2, 1)))
 
-        # print(foo)
+        print(foo)
         # print(bar)
 
         # res = foo + bar
@@ -346,17 +377,17 @@ class TestSubclassDispatch(TestCase):
         # print(out)
 
 
-        Vmap1 = type("Vmap1", (Vmap0,), {"_dim": 0})
-        foo = Vmap0(torch.rand(2, 3, 1))
-        print(foo)
+        # Vmap1 = type("Vmap1", (Vmap0,), {"_dim": 0})
+        # foo = Vmap0(torch.rand(2, 3, 1))
+        # print(foo)
 
-        bar = Vmap1(foo)
-        print("baz", bar)
-        safe_print(bar.elem)
+        # bar = Vmap1(foo)
+        # print("baz", bar)
+        # safe_print(bar.elem)
 
-        res = bar.exp()
+        # res = bar.exp()
 
-        print("Exp", res)
+        # print("Exp", res)
 
 
 
