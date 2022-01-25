@@ -9,6 +9,8 @@
 #include <ATen/core/Variadic.h>
 #include <ATen/core/stack.h>
 
+#include <iostream>
+
 namespace c10 {
 
 namespace impl {
@@ -43,6 +45,7 @@ static inline DispatchKeySet computeDispatchKeySet(
   // it's a bit troublesome, because fastpath TLS access requires the type of
   // the TLS in question to be zero-initialized, so you don't actually win
   // anyting in that case.
+  // std::cout<<"Computing key for "<<ks << " incl: "<<local.included_<<" excl: "<<local.excluded_<< " mask: "<<key_mask<<" res: "<<(((ks | local.included_) - local.excluded_) & key_mask)<<std::endl;
   return (((ks | local.included_) - local.excluded_) & key_mask);
 }
 

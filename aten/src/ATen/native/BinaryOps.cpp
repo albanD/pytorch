@@ -294,6 +294,13 @@ TORCH_IMPL_FUNC(sub_out) (
 TORCH_IMPL_FUNC(mul_out) (
   const Tensor& self, const Tensor& other, const Tensor& result
 ) {
+
+  // std::cout << "Inside mul_out!" <<std::endl;
+  // auto tls_ks = c10::impl::raw_local_dispatch_key_set;
+  // auto prev_excluded = tls_ks.excluded();
+  // tls_ks.set_excluded(DispatchKeySet());
+  // std::cout << "Included: " << tls_ks.included() << std::endl;
+  // std::cout << "Excluded: " << tls_ks.excluded() << std::endl;
   mul_stub(device_type(), *this);
 }
 

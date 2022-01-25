@@ -14,6 +14,8 @@
 
 #include <ATen/core/grad_mode.h>
 
+#include <iostream>
+
 #if C10_MOBILE
 #define C10_DISPATCHER_INLINE_UNLESS_MOBILE inline
 #else
@@ -545,6 +547,7 @@ C10_DISPATCHER_INLINE_UNLESS_MOBILE Return Dispatcher::call(const TypedOperatorH
     return callWithDispatchKeySlowPath<Return, Args...>(op, pre_sampled, dispatchKeySet, kernel, std::forward<Args>(args)...);
   }
 #endif  // PYTORCH_DISABLE_PER_OP_PROFILING
+  // std::cout<<"calling op "<<op.operator_name().name<<"with"<<dispatchKeySet<<" and dispatching to "<<dispatchKeySet.highestPriorityTypeId()<<std::endl;
   return kernel.template call<Return, Args...>(op, dispatchKeySet, std::forward<Args>(args)...);
 }
 

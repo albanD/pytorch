@@ -308,7 +308,7 @@ static bool THPVariable_tryResurrect(THPVariable* self) {
 
   // There are other C++ owners of the tensor.  Flip ownership
   // so that C++ owns this Python object, and cancel deallocation.
-  // TORCH_INTERNAL_ASSERT(!tensor.unsafeGetTensorImpl()->owns_pyobj());
+  TORCH_INTERNAL_ASSERT(!tensor.unsafeGetTensorImpl()->owns_pyobj());
 
   tensor.unsafeGetTensorImpl()->set_owns_pyobj(true);
 
@@ -909,7 +909,7 @@ PyObject *THPVariable_is_sparse(THPVariable *self, void *unused)
   HANDLE_TH_ERRORS
   if (check_has_torch_function((PyObject *)self)) {
     return handle_torch_function_getter(self, "is_sparse");
-  }
+  }  
   auto& self_ = THPVariable_Unpack(self);
   return torch::autograd::utils::wrap(self_.is_sparse());
   END_HANDLE_TH_ERRORS
@@ -943,8 +943,14 @@ PyObject *THPVariable_is_mlc(THPVariable *self, void *unused)
   if (check_has_torch_function((PyObject *)self)) {
     return handle_torch_function_getter(self, "is_mlc");
   }
+
+  auto tls_ks = c10::impl::raw_local_dispatch_key_set;
+  tls_ks.set_excluded(DispatchKeySet());
+  std::cout << "is mlc: Included: " << tls_ks.included() << std::endl;
+  std::cout << "is mlc: Excluded: " << tls_ks.excluded() << std::endl;
+
   auto& self_ = THPVariable_Unpack(self);
-  return torch::autograd::utils::wrap(self_.is_mlc());
+  return torch::autograd::utils::wrap(false);
   END_HANDLE_TH_ERRORS
 }
 
@@ -1291,7 +1297,8 @@ void THPVariable_subclass_dealloc(PyObject* self) {
   //   PyErr_Print();
   //   std::cout<<"Ah ok!"<<std::endl;
   // }
-  TORCH_CHECK(!PyErr_Occurred(), "subclass dealloc bad");
+  // This is actually OK
+  // TORCH_CHECK(!PyErr_Occurred(), "subclass dealloc bad");
   if (THPVariable_tryResurrect((THPVariable*)self))
     return;
 
@@ -1682,6 +1689,13 @@ void concrete_dispatch_fn(
   const char* ns = ns_str.c_str();
   const char* func_name = qualified_name.c_str() + pos + strlen("::");
 
+  auto& tls_ks = c10::impl::raw_local_dispatch_key_set;
+  auto prev_excluded = tls_ks.excluded();
+  tls_ks.set_excluded(DispatchKeySet());
+  auto tls_ks2 = c10::impl::tls_local_dispatch_key_set();
+  // ::std::cout <<"inside dispatch fn "<< "Included: " << tls_ks2.included_ << ::std::endl;
+  // ::std::cout <<"inside dispatch fn "<< "Excluded: " << tls_ks2.excluded_ << ::std::endl;
+
   // The plan: convert all the arguments back into PyObjects,
   // extracting out the tensor handles, then call
   // handle_torch_function_no_python_arg_parser
@@ -1803,6 +1817,8 @@ void concrete_dispatch_fn(
       torch::jit::push(stack, torch::jit::toIValue(outs[idx].ptr(), op.schema().returns()[idx].type()));
     }
   }
+
+  tls_ks.set_excluded(prev_excluded);
 }
 
 c10::intrusive_ptr<TensorImpl> concrete_detach_fn(const c10::impl::PyInterpreter*, const c10::TensorImpl* self) {

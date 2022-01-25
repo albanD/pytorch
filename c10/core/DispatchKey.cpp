@@ -1,6 +1,7 @@
 #include <c10/core/DispatchKey.h>
 
 #include <unordered_map>
+#include <iostream>
 
 namespace c10 {
 
@@ -169,6 +170,7 @@ const char* toString(DispatchKey t) {
       return "FuncTorchBatched";
 
     default:
+      std::cout<<"wtf??"<<std::to_string(static_cast<uint8_t>(t));
       return "UNKNOWN_TENSOR_TYPE_ID";
   }
 }

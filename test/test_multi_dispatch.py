@@ -5,25 +5,65 @@ from torch.utils._pytree import tree_map, tree_unflatten, tree_flatten
 import contextlib
 from typing import Iterator, List
 
+class WrapperTensor(torch.Tensor):
+    @staticmethod
+    def __new__(cls, *args, **kwargs):
+        t, kwargs = cls.get_wrapper_properties(*args, **kwargs)
+        if "size" not in kwargs:
+            size = t.size()
+        else:
+            size = kwargs["size"]
+            del kwargs["size"]
+        if "dtype" not in kwargs:
+            kwargs["dtype"] = t.dtype
+        if "layout" not in kwargs:
+            kwargs["layout"] = t.layout
+        if "device" not in kwargs:
+            kwargs["device"] = t.device
+        if "requires_grad" not in kwargs:
+            kwargs["requires_grad"] = False
+        # Ignore memory_format and pin memory for now as I don't know how to
+        # safely access them on a Tensor (if possible??)
+
+        wrapper = torch.Tensor._make_wrapper_subclass(cls, size, **kwargs)
+        # del kwargs["device"]
+        # wrapper = torch.Tensor._make_subclass(cls, torch.empty(size, device="meta", **kwargs))
+        wrapper._validate_methods()
+        return wrapper
+
+    @classmethod
+    def get_wrapper_properties(cls, *args, **kwargs):
+        raise NotImplementedError("You need to implement get_wrapper_properties")
+
+    def _validate_methods(self):
+        # Skip this if not in debug mode?
+        # Changing these on the python side is wrong as it would not be properly reflected
+        # on the c++ side
+        # This doesn't catch attributes set in the __init__
+        forbidden_overrides = ["size", "stride", "dtype", "layout", "device", "requires_grad"]
+        for el in forbidden_overrides:
+            if getattr(self.__class__, el) is not getattr(torch.Tensor, el):
+                raise RuntimeError(f"Subclass {self.__class__.__name__} is overwriting the "
+                                   f"property {el} but this is not allowed as such change would "
+                                   "not be reflected to c++ callers.")
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.__dict__})"
+
 # General wrapper
-class GeneralWrapper(torch.Tensor):
+class GeneralWrapper(WrapperTensor):
     elem: torch.Tensor
 
     __slots__ = ['elem']
 
-    @staticmethod
-    def __new__(cls, elem, *args, **kwargs):
-        r = torch.Tensor._make_subclass(cls, elem.to('meta'), elem.requires_grad)
-        r.elem = elem
-        cls._post_new(r, args, kwargs)
-        return r
+    def __init__(self, elem, *args, **kwargs):
+        self.elem = elem
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.elem})"
+    @classmethod
+    def get_wrapper_properties(cls, elem, *args, **kwargs):
+        return elem, {}
 
-    @staticmethod
-    def _post_new(obj, args, kwargs):
-        return r
+    __torch_function__ = torch._C._disabled_torch_function_impl
 
     # Basic no-op implementation if needed
     @classmethod
@@ -41,18 +81,21 @@ class GeneralWrapper(torch.Tensor):
 
 # Some printing tool
 class PrintingTensor(GeneralWrapper):
-    @staticmethod
-    def _post_new(obj, args, kwargs):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
         assert len(args) == 1
         assert len(kwargs) == 0
         assert isinstance(args[0], list)
-        obj.printer = args[0]
-        return obj
+        self.printer = args[0]
 
     @classmethod
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
-        assert isinstance(args[0], PrintingTensor)
-        printer = args[0].printer
+        printer = None
+        for a in args:
+            if isinstance(a, PrintingTensor):
+                printer = a.printer
+                break
+        assert printer is not None
         printer.append(f"{func.__module__}.{func.__name__}")
 
         return cls._delegate_call(func, types, args, kwargs, (printer,))
@@ -137,18 +180,14 @@ def AD_run_backward(inp):
             queue.append((next_node, grad))
 
 class BackwardADTensor(GeneralWrapper):
-    @staticmethod
-    def _post_new(obj, args, kwargs):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
         assert len(args) == 0
         assert len(kwargs) == 0 or (len(kwargs) == 1 and "requires_grad" in kwargs)
         if kwargs.get("requires_grad", False):
-            obj.node = LeafNode(obj)
+            self.node = LeafNode(self)
         else:
-            obj.node = None
-        return obj
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.elem, self.node})"
+            self.node = None
 
     @staticmethod
     def get_node_from_func(func):
@@ -212,7 +251,7 @@ class TestMultiDispatch(TestCase):
         foo = BackwardADTensor(torch.rand(2), requires_grad=True)
         bar = PrintingTensor(torch.rand(2), print_list)
 
-        res = foo * bar
+        res = torch.mul(foo, bar)
 
 
 if __name__ == '__main__':
