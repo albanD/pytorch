@@ -26,6 +26,8 @@ class WrapperTensor(torch.Tensor):
         # safely access them on a Tensor (if possible??)
 
         wrapper = torch.Tensor._make_wrapper_subclass(cls, size, **kwargs)
+        # del kwargs["device"]
+        # wrapper = torch.Tensor._make_subclass(cls, torch.empty(size, device="meta", **kwargs))
         wrapper._validate_methods()
         return wrapper
 
@@ -75,17 +77,20 @@ class GeneralWrapper(WrapperTensor):
     # Basic no-op implementation if needed
     @classmethod
     def _delegate_call(cls, func, types, args, kwargs, extra_args=tuple(), extra_kwargs=None):
-        # print(f"Delegating call for {cls.__name__} to {func.__module__}.{func.__name__} with {types}")
+        print(f"Delegating call for {cls.__name__} to {func.__module__}.{func.__name__} with {types}")
         if extra_kwargs is None:
             extra_kwargs = {}
 
         wrapper = functools.partial(cls.wrap, extra_args, extra_kwargs)
 
-        raw_res = func(*tree_map(cls.unwrap, args), **tree_map(cls.unwrap, kwargs))
+        ag = tree_map(cls.unwrap, args)
+        # print(f" {func.__module__}.{func.__name__}for {cls.__name__} :  {ag}!!!!")
+        raw_res = func(*ag, **tree_map(cls.unwrap, kwargs))
+        print(f"{func.__module__}.{func.__name__} for {cls.__name__} raw_res {type(raw_res)}::::")
         res = tree_map(wrapper, raw_res)
+        print(f"{func.__module__}.{func.__name__} for {cls.__name__} res {type(res)}::::")
         return res
 
-    # Default no-op operation
     @classmethod
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
         return cls._delegate_call(func, types, args, kwargs)
@@ -111,21 +116,27 @@ class PrintingTensor(GeneralWrapper):
 
         return cls._delegate_call(func, types, args, kwargs, (printer,))
 
-# Used as a dummy wrapper to "hide" Tensors we want to ignore while going through
-# the dispatcher. It's special power is to disappear as soon as it gets to dispatch.
-# It does that by unpacking itself and never repacking
 class BackwardADTrackingTensor(GeneralWrapper):
     def __init__(self, elem, *args, **kwargs):
         super().__init__(elem, *args, **kwargs)
         assert len(args) == 0
-        assert len(kwargs) == 0
-        # This Tensor should never require gradients
-        assert self.requires_grad == False
+        assert len(kwargs) == 0 or (len(kwargs) == 1 and "requires_grad" in kwargs)
+        assert not kwargs.get("requires_grad", False)
 
     @classmethod
-    def wrap(cls, extra_args, extra_kwargs, e):
-        return e
+    def unwrap(cls, e):
+        return e.elem if isinstance(e, cls) else e
 
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        if not all(issubclass(t, BackwardADTrackingTensor) for t in types):
+            raise RuntimeError(f"Bad types for tracking Tensor!: {types}")
+
+        return cls._delegate_call(func, types, args, kwargs)
+
+    def __repr__(self):
+        grad_str = f"grad_fn={self.grad_fn}" if self.grad_fn else f"requires_grad={self.requires_grad}"
+        return super().__repr__([grad_str,])
 
 # Only the wrapped Tensor has autograd meta.
 # This is necessary because if the wrapper has some, it would be handled before
@@ -133,6 +144,7 @@ class BackwardADTrackingTensor(GeneralWrapper):
 class BackwardADTensor(GeneralWrapper):
     def __init__(self, elem, *args, **kwargs):
         super().__init__(elem, *args, **kwargs)
+        assert isinstance(elem, BackwardADTrackingTensor)
         assert len(args) == 0
         assert len(kwargs) == 0 or (len(kwargs) == 1 and "requires_grad" in kwargs)
         if kwargs.get("requires_grad", False):
@@ -150,7 +162,95 @@ class BackwardADTensor(GeneralWrapper):
         if not isinstance(e, torch.Tensor):
             return e
         else:
-            return e.elem if isinstance(e, cls) else BackwardADTrackingTensor(e)
+            return e.elem if isinstance(e, cls) else BackwardADTrackingTensor(e, requires_grad=False)
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        return cls._delegate_call(func, types, args, kwargs)
+
+def is_batched(t):
+    try:
+        if not torch.is_tensor(t):
+            return False
+        t.storage()
+    except NotImplementedError as e:
+        if "BatchedTensorImpl" in str(e):
+            return True
+    return False
+
+def unpack_batched(t, out_bdim):
+    res = torch._remove_batch_dim(t, 0, -1, out_bdim)
+    assert not is_batched(res)
+    return res
+
+class BatchedTempWrapperTensor(GeneralWrapper):
+    @classmethod
+    def wrap(cls, extra_args, extra_kwargs, e):
+        return e
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        if not all(issubclass(t, BatchedTempWrapperTensor) for t in types):
+            print(f"Inverted BatchedTempWrapperTensor order!: {types}")
+            return NotImplemented
+
+        return cls._delegate_call(func, types, args, kwargs)
+
+class BatchedTrackingTensor(GeneralWrapper):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
+        assert len(args) == 0
+        assert len(kwargs) == 0 or (len(kwargs) == 1 and "requires_grad" in kwargs)
+        assert not kwargs.get("requires_grad", False)
+
+    @classmethod
+    def unwrap(cls, e):
+        return e.elem if (isinstance(e, cls) or isinstance(e, BatchedTempWrapperTensor)) else e
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        if not all(issubclass(t, BatchedTrackingTensor) or issubclass(t, BatchedTempWrapperTensor) for t in types):
+            raise RuntimeError(f"Bad types for tracking Tensor!: {types}")
+
+        return cls._delegate_call(func, types, args, kwargs)
+
+class BatchedTensor(GeneralWrapper):
+    _dim = -1
+
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
+        assert isinstance(elem, BatchedTrackingTensor)
+        # assert not is_batched(elem)
+        assert len(args) == 0
+        assert len(kwargs) == 0
+        assert self._dim != -1
+        self.elem = torch._add_batch_dim(self.elem, self._dim, 0)
+
+    @classmethod
+    def unwrap(cls, e):
+        # Special logic here where we want to unwrap all of the Tensor of this type
+        # while wrapping everything else to make sure they don't "polute" our vmap
+        # handling
+        if not isinstance(e, torch.Tensor):
+            return e
+        else:
+            return e.elem if isinstance(e, cls) else BatchedTempWrapperTensor(e)
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        res = cls._delegate_call(func, types, args, kwargs)
+        return res
+
+    def __repr__(self):
+        extra = [f"batched={is_batched(self.elem)}",]
+        # printing of batched Tensor is broken so temporary swap it with a plain one
+        tmp, self.elem = self.elem, unpack_batched(self.elem, 0)
+        if is_batched:
+            extra.append(f"batch_dim={self._dim}")
+            extra.append(f"batch_size={self.elem.size()}")
+        res = super().__repr__(extra)
+        self.elem = tmp
+        return res
 
 
 class TestSubclassDispatch(TestCase):
@@ -168,8 +268,8 @@ class TestSubclassDispatch(TestCase):
 
     def test_bw_ad(self):
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
-        bar = BWLevel0(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(BackwardADTrackingTensor(torch.rand(2)), requires_grad=True)
+        bar = BWLevel0(BackwardADTrackingTensor(torch.rand(2)), requires_grad=True)
 
         print("prod between subclasses")
         print(foo)
@@ -192,7 +292,7 @@ class TestSubclassDispatch(TestCase):
         print(foo.grad)
         self.assertIsNone(foo.grad)
         print(foo.elem.grad)
-        self.assertEqual(foo.elem.grad, bar)
+        self.assertEqual(foo.elem.grad.elem, bar)
         print(bar.grad)
         self.assertIsNone(bar.grad)
 
@@ -200,8 +300,8 @@ class TestSubclassDispatch(TestCase):
     def test_bw_ad_multilvl(self):
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
         BWLevel1 = type("BWLevel1", (BWLevel0,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
-        bar = BWLevel1(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(BackwardADTrackingTensor(torch.rand(2)), requires_grad=True)
+        bar = BWLevel1(BackwardADTrackingTensor(torch.rand(2)), requires_grad=True)
 
         print("prod")
         print(foo)
@@ -230,11 +330,11 @@ class TestSubclassDispatch(TestCase):
 
     def test_bw_ad_plain(self):
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(BackwardADTrackingTensor(torch.rand(2)), requires_grad=True)
 
         bar = torch.rand(2, requires_grad=True)
 
-        print("prod between subclass and plain that requires grad")
+        print("prod between subclasses")
         print(foo)
         print(bar)
         res = foo * bar
@@ -247,11 +347,56 @@ class TestSubclassDispatch(TestCase):
         print(foo.grad)
         self.assertIsNone(foo.grad)
         print(foo.elem.grad)
-        self.assertEqual(foo.elem.grad, bar)
+        self.assertEqual(foo.elem.grad.elem, bar)
         print(bar.grad)
         self.assertIsNone(bar.grad)
 
-        
+        # Should not need the .elem?
+        out.elem.elem.backward(torch.ones([]))
+        print(foo.grad)
+        self.assertIsNone(foo.grad)
+        print(foo.elem.grad)
+        self.assertEqual(foo.elem.grad.elem, bar)
+        print(bar.grad)
+        self.assertEqual(bar.grad, foo.elem.elem)
+
+    def test_batched(self):
+        Vmap0 = type("Vmap0", (BatchedTensor,), {"_dim": 0})
+        foo = Vmap0(BatchedTrackingTensor(torch.rand(2, 1)))
+        bar = Vmap0(BatchedTrackingTensor(torch.rand(2, 1)))
+
+        print(foo)
+        print(bar)
+
+        res = foo + bar
+        print(res)
+        out = unpack_batched(res.elem, 0)
+        print(out)
+
+        # foo = Vmap0(torch.rand(2, 1))
+        # bar = torch.rand(1)
+
+        # print(foo)
+        # print(bar)
+
+        # res = foo + bar
+        # print(res)
+        # out = unpack_batched(res.elem, 0)
+        # print(out)
+
+
+        # Vmap1 = type("Vmap1", (Vmap0,), {"_dim": 0})
+        # foo = Vmap0(torch.rand(2, 3, 1))
+        # print(foo)
+
+        # bar = Vmap1(foo)
+        # print("baz", bar)
+        # safe_print(bar.elem)
+
+        # res = bar.exp()
+
+        # print("Exp", res)
+
 
 
 if __name__ == '__main__':
