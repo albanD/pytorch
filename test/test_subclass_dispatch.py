@@ -127,6 +127,7 @@ class BackwardADTrackingTensor(GeneralWrapper):
         return e
 
 
+
 # Only the wrapped Tensor has autograd meta.
 # This is necessary because if the wrapper has some, it would be handled before
 # we get to the torch dispatch call
@@ -138,7 +139,7 @@ class BackwardADTensor(GeneralWrapper):
         if kwargs.get("requires_grad", False):
             # User asked for this wrapper to be a leaf so we make sure the wrapped
             # Tensor is a leaf
-            assert self.elem.requires_grad is False
+            assert self.elem.requires_grad is False # Not needed? Can reuse the graph?
             assert self.elem.grad_fn is None
             self.elem.requires_grad = True
 
@@ -152,8 +153,123 @@ class BackwardADTensor(GeneralWrapper):
         else:
             return e.elem if isinstance(e, cls) else BackwardADTrackingTensor(e)
 
+    def __repr__(self):
+        grad_str = f"grad_fn={self.grad_fn}" if self.grad_fn else f"requires_grad={self.requires_grad}"
+        return super().__repr__([grad_str,])
+
+
+last_bad_class = BackwardADTensor
+last_bad_class_idx = -1
+def grad(fn):
+    def wrapped(x):
+        global last_bad_class
+        global last_bad_class_idx
+        prev_last_class = last_bad_class
+        last_bad_class_idx += 1
+        Cls = type(f"BWLevel{last_bad_class_idx}", (last_bad_class,), {})
+        last_bad_class = Cls
+
+        with torch.enable_grad():
+            inp = Cls(x, requires_grad=True)
+
+            out = fn(inp)
+
+            assert isinstance(out, torch.Tensor)
+            assert out.nelement() == 1
+
+            grad, = torch.autograd.grad(out.elem, inp.elem, allow_unused=True, create_graph=True)
+
+        last_bad_class = prev_last_class
+        last_bad_class_idx -= 1
+        return grad
+    return wrapped
+
+class BatchedTensor(GeneralWrapper):
+    def __init__(self, elem, *args, **kwargs):
+        super().__init__(elem, *args, **kwargs)
+        assert len(args) == 0
+        assert len(kwargs) == 0
+
+    @classmethod
+    def get_wrapper_properties(cls, elem, *args, **kwargs):
+        assert elem.dim() >= 1
+        return elem, {"size": elem.size()[1:]}
+
+    def __repr__(self):
+        full_size = f"batch_size={self.elem.size(0)},size={self.size()}"
+        return super().__repr__([full_size,])
+
+    @classmethod
+    def unwrap(cls, e):
+        # Special logic here where we want to unwrap all of the Tensor of this type
+        # while wrapping everything else to make sure they don't "polute" our autograd
+        # handling
+        if not isinstance(e, cls):
+            return e
+        else:
+            return e.elem[cls.curr_idx]
+
+    @classmethod
+    def wrap(cls, extra_args, extra_kwargs, e):
+        return e
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        # use cls.curr_idx as hack to easily do the for-loop fallback
+        assert not hasattr(cls, "curr_idx")
+
+        batch_size = -1
+        for arg in args:
+            if isinstance(arg, cls):
+                batch_size = arg.elem.size(0)
+                break
+            if isinstance(arg, list):
+                for a in arg:
+                    if isinstance(a, cls):
+                        batch_size = a.elem.size(0)
+                        break
+        assert batch_size >= 0
+
+        res = []
+        for b in range(batch_size):
+            setattr(cls, "curr_idx", b)
+            res.append(cls._delegate_call(func, types, args, kwargs))
+        delattr(cls, "curr_idx")
+
+        res = torch.stack(res)
+        return cls(res)
+
+last_vmap_class = BatchedTensor
+last_vmap_class_idx = -1
+def vmap(fn):
+    def wrapped(*inputs):
+        global last_vmap_class
+        global last_vmap_class_idx
+        prev_last_class = last_vmap_class
+        last_vmap_class_idx += 1
+        Cls = type(f"VmapLevel{last_vmap_class_idx}", (last_vmap_class,), {})
+        last_vmap_class = Cls
+
+        inp = (Cls(x) for x in inputs)
+
+        out = fn(*inp)
+
+        assert isinstance(out, torch.Tensor)
+
+        last_vmap_class = prev_last_class
+        last_vmap_class_idx -= 1
+        return out.elem
+    return wrapped
+
 
 class TestSubclassDispatch(TestCase):
+    def test_base_batched(self):
+        foo = BatchedTensor(torch.rand(2, 3))
+        print(foo)
+
+        out = foo.select(0, 1)
+        print(out)
+
     def test_base_print(self):
         print_list = []
         foo = PrintingTensor(torch.rand(2), print_list)
@@ -168,8 +284,8 @@ class TestSubclassDispatch(TestCase):
 
     def test_bw_ad(self):
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
-        bar = BWLevel0(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(torch.rand(2), requires_grad=True)
+        bar = BWLevel0(torch.rand(2), requires_grad=True)
 
         print("prod between subclasses")
         print(foo)
@@ -188,7 +304,7 @@ class TestSubclassDispatch(TestCase):
 
         # Should not need the .elem?
         out = res.sum()
-        out.elem.backward(torch.ones([]))
+        out.elem.backward()
         print(foo.grad)
         self.assertIsNone(foo.grad)
         print(foo.elem.grad)
@@ -200,8 +316,8 @@ class TestSubclassDispatch(TestCase):
     def test_bw_ad_multilvl(self):
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
         BWLevel1 = type("BWLevel1", (BWLevel0,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
-        bar = BWLevel1(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(torch.rand(2), requires_grad=True)
+        bar = BWLevel1(torch.rand(2), requires_grad=True)
 
         print("prod")
         print(foo)
@@ -211,26 +327,28 @@ class TestSubclassDispatch(TestCase):
         out = res.sum()
         self.assertIsNotNone(out.elem.grad_fn)
 
-        print("back of lvl0")
+        print("back of lvl1")
         # Should not need the .elem?
         out.elem.backward(torch.ones([]), retain_graph=True)
         print(foo.elem.grad)
         self.assertIsNone(foo.elem.grad)
         print(bar.elem.grad)
-        # Unpack all the levels to avoid "Delegating " print spam
-        self.assertEqual(bar.elem.grad.elem.elem.elem, foo.elem.elem)
+        self.assertEqual(bar.elem.grad, foo)
 
-        print("back of lvl1")
-        # Should not need the .elem?
-        out.elem.elem.elem.backward(torch.ones([]))
+        foo.elem.grad = None
+        bar.elem.grad = None
+        print("back of lvl0")
+        # Should not need the second .elem?
+        out.elem.elem.backward()
         print(foo.elem.grad)
-        self.assertEqual(foo.elem.grad.elem, bar.elem.elem)
+        self.assertEqual(foo.elem.grad, bar.elem)
         print(bar.elem.grad)
-        self.assertEqual(bar.elem.grad.elem.elem.elem, foo.elem.elem)
+        self.assertIsNone(bar.elem.grad)
 
     def test_bw_ad_plain(self):
+        # tl;dr doesn't work!
         BWLevel0 = type("BWLevel0", (BackwardADTensor,), {})
-        foo = BWLevel0(torch.rand(2, requires_grad=True))
+        foo = BWLevel0(torch.rand(2), requires_grad=True)
 
         bar = torch.rand(2, requires_grad=True)
 
@@ -243,7 +361,7 @@ class TestSubclassDispatch(TestCase):
         out = res.sum()
         self.assertIsNotNone(out.elem.grad_fn)
         # Should not need the .elem?
-        out.elem.backward(torch.ones([]))
+        out.elem.backward()
         print(foo.grad)
         self.assertIsNone(foo.grad)
         print(foo.elem.grad)
@@ -252,7 +370,74 @@ class TestSubclassDispatch(TestCase):
         self.assertIsNone(bar.grad)
 
         
+    def test_bw_ad_values(self):
+        x = torch.rand([])
+        out = grad(torch.sin)(x)
+        self.assertEqual(out, torch.cos(x))
 
+        x = torch.rand([])
+        out = grad(grad(torch.sin))(x)
+        self.assertEqual(out, -torch.sin(x))
+
+    def test_conj(self):
+        x = torch.tensor(1+1j)
+        def foo(x):
+            assert not x.is_conj()
+            y = x.conj()
+            assert y.elem.is_conj() # Not properly reflected on the wrapper class?
+            return y
+        res = grad(foo)(x)
+        self.assertEqual(res, torch.ones_like(res))
+
+    def test_indexing(self):
+        def f2(value):
+            value = value.clone()
+            value[value > 0] = 0
+            return value.sum()
+
+        x = torch.randn(100)
+        result = grad(f2)(x)
+        self.assertEqual(result, (x <= 0).type_as(x))
+
+    def test_constructor(self):
+        def foo(x):
+            return x * torch.tensor(2.)
+
+        x = torch.tensor(3.14)
+        grad(foo)(x)
+
+    def test_no_grad(self):
+        def f(x):
+            with torch.no_grad():
+                shift = x ** 2
+            return x ** 2 - shift
+
+        x = torch.randn([])
+        y = grad(f)(x)
+        self.assertEqual(y, 2 * x)
+        x = torch.randn([])
+        y = grad(grad(f))(x)
+
+    def test_vmap_with_same_map_dim(self):
+        x = torch.randn(2, 3, 5)
+        y = torch.randn(2, 3, 5)
+        output = vmap(vmap(torch.mul))(x, y)
+        self.assertEqual(output, x * y)
+
+        output = vmap(vmap(vmap(torch.mul)))(x, y)
+        self.assertEqual(output, x * y)
+
+    def test_vmap_with_different_map_dim(self):
+        x = torch.randn(2, 3)
+        y = torch.randn(5, 3)
+        output = vmap(lambda x: vmap(lambda y: x * y)(y))(x)
+        self.assertEqual(output.shape, (2, 5, 3))
+        self.assertEqual(output, x.view(2, 1, 3) * y)
+
+        z = torch.randn(7, 3)
+        output = vmap(lambda x: vmap(lambda y: vmap(lambda z: x * y * z)(z))(y))(x)
+        self.assertEqual(output.shape, (2, 5, 7, 3))
+        self.assertEqual(output, x.view(2, 1, 1, 3) * y.view(5, 1, 3) * z)
 
 if __name__ == '__main__':
     run_tests()
