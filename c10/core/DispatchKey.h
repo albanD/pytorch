@@ -56,7 +56,7 @@ enum class DispatchKey : uint8_t {
   CUDA, // registered at build/aten/src/ATen/RegisterCUDA.cpp
   HIP, // NB: I think this is not actually used, due to Note [Masquerading as
   // CUDA]
-  FPGA, // Xilinx support lives out of tree at
+  // FPGA, // Xilinx support lives out of tree at
   // https://gitlab.com/pytorch-complex/vitis_kernels
 
   // ONNX Runtime, lives out of tree at https://github.com/pytorch/ort and
@@ -281,6 +281,9 @@ enum class DispatchKey : uint8_t {
   // See Note [Functionalization Pass In Core] for details.
   Functionalize,
   FuncTorchDynamicLayerFrontMode, // See Note [Out-of-tree vmap+grad prototype]
+
+  // Used by Python key logic to know the set of tls on entry to the dispatcher
+  PythonTLSSnapshot,
 
   // TESTING: This is intended to be a generic testing tensor type id.
   // Don't use it for anything real; its only acceptable use is within a single
