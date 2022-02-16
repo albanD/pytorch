@@ -21,12 +21,14 @@ class C10_API AbstractSizeVal {
 
     AbstractSizeVal* operator+(int64_t other) const {
         std::cout << "Adding const abstract size: " << value <<std::endl;
+        // Leaks! Leaks everywhere
         AbstractSizeVal* res = new AbstractSizeVal(value + other);
         return res;
     }
 
     AbstractSizeVal* operator+(int64_t other) {
         std::cout << "Adding abstract size: " << value <<std::endl;
+        // Leaks! Leaks everywhere
         AbstractSizeVal* res = new AbstractSizeVal(value + other);
         return res;
     }
@@ -57,11 +59,15 @@ public:
         this->field_.val = inp;
     }
 
+    AbstractSizeVal* get_real_ptr() const {
+        int64_t real_ptr = (int64_t)field_.ptr;
+        real_ptr &= ~((int64_t)1 << 63);
+        return (AbstractSizeVal*)real_ptr;
+    }
+
     operator int64_t*() {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return ((AbstractSizeVal*)real_ptr)->get();
+            return get_real_ptr()->get();
         } else {
             return &field_.val;
         }
@@ -69,9 +75,7 @@ public:
  
     operator const int64_t*() const {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return ((AbstractSizeVal*)real_ptr)->get();
+            return get_real_ptr()->get();
         } else {
             return &field_.val;
         }
@@ -79,9 +83,7 @@ public:
 
     operator int64_t() {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return *((AbstractSizeVal*)real_ptr)->get();
+            return *get_real_ptr()->get();
         } else {
             return field_.val;
         }
@@ -89,9 +91,7 @@ public:
 
     operator int64_t() const {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return *((AbstractSizeVal*)real_ptr)->get();
+            return *get_real_ptr()->get();
         } else {
             return field_.val;
         }
@@ -107,9 +107,7 @@ public:
 
     SizeVal operator+(int64_t other) const {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return SizeVal(*((AbstractSizeVal*)real_ptr) + other);
+            return SizeVal(*get_real_ptr() + other);
         } else {
             return SizeVal(field_.val + other);
         }
@@ -121,9 +119,7 @@ public:
 
     SizeVal operator+(int64_t other) {
         if (field_.val < 0) {
-            int64_t real_ptr = (int64_t)field_.ptr;
-            real_ptr &= ~((int64_t)1 << 63);
-            return SizeVal(*((AbstractSizeVal*)real_ptr) + other);
+            return SizeVal(*get_real_ptr()+ other);
         } else {
             return SizeVal(field_.val + other);
         }

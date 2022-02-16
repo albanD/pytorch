@@ -9,7 +9,8 @@ from torch.utils import cpp_extension
 
 cpp_source = """
 int64_t size_add(torch::Tensor x) {
-  return x.sizes()[0] + 2;
+  c10::impl::SizeVal res = x.sizes()[0] + (int64_t)2;
+  return res;
 }
 """
 
@@ -106,13 +107,13 @@ def capture_logs() -> Iterator[List[str]]:
 
 t = LoggingTensor(torch.rand(3))
 
-print(module.size_add(t))
+print("result: ", module.size_add(t))
 
-with capture_logs() as log:
-    log_input("t", t)
-    t2 = t + 1
-    t3 = t2.expand(t.size())
+# with capture_logs() as log:
+#     log_input("t", t)
+#     t2 = t + 1
+#     t3 = t2.expand(t.size())
 
-for l in log:
-    print(l)
+# for l in log:
+#     print(l)
 
