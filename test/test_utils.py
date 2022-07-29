@@ -19,6 +19,7 @@ import torch.utils.cpp_extension
 from torch.autograd._functions.utils import check_onnx_broadcast
 from torch.onnx.symbolic_opset9 import _prepare_onnx_paddings
 from torch.testing._internal.common_utils import load_tests, IS_SANDCASTLE, IS_WINDOWS
+from torch.utils import feature_warning
 
 # load_tests from torch.testing._internal.common_utils is used to automatically filter tests for
 # sharding on sandcastle. This line silences flake warnings
@@ -708,6 +709,42 @@ class TestCppExtensionUtils(TestCase):
 
     def test_cc_compiler_is_ok(self):
         self.assertTrue(torch.utils.cpp_extension.check_compiler_ok_for_platform('cc'))
+
+class TestFeatureWarning(TestCase):
+    def test_basic_warning(self):
+        def my_proto_fn(a):
+            feature_warning.declare_feature(feature_warning.FeatureType.prototype, "test_proto")
+            return a.clone()
+
+        def my_beta_fn(a):
+            feature_warning.declare_feature(feature_warning.FeatureType.beta, "test_beta")
+            return a.clone()
+
+        @feature_warning.wrap_feature(feature_warning.FeatureType.prototype)
+        def my_proto_fn2(a):
+            return a.clone()
+
+        @feature_warning.wrap_feature(feature_warning.FeatureType.beta)
+        def my_beta_fn2(a):
+            return a.clone()
+
+        a = torch.rand(2)
+        with feature_warning.always_warn():
+            with self.assertWarns(feature_warning.PrototypeFeatureWarning):
+                my_proto_fn(a)
+
+            with self.assertWarns(feature_warning.PrototypeFeatureWarning):
+                my_proto_fn2(a)
+
+            with self.assertWarns(feature_warning.BetaFeatureWarning):
+                my_beta_fn(a)
+
+            with self.assertWarns(feature_warning.BetaFeatureWarning):
+                my_beta_fn2(a)
+
+        feature_warning.disable("test_proto")
+        self.assertNotWarn(lambda: my_proto_fn(a))
+        self.assertNotWarn(lambda: my_proto_fn2(a))
 
 
 if __name__ == '__main__':
