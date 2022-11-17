@@ -335,6 +335,9 @@ def checkpoint_sequential(functions, segments, input, use_reentrant=True, **kwar
         )
     return run_function(end + 1, len(functions) - 1, functions)(input)
 
+class CheckpointAllComputedError(Exception):
+    pass
+
 def _checkpoint_without_reentrant(function, preserve_rng_state=True, *args, **kwargs):
     """Checkpointining without re-entrant autograd
     Args:
@@ -380,11 +383,13 @@ def _checkpoint_without_reentrant(function, preserve_rng_state=True, *args, **kw
         # size, device, ...) to catch certain cases of undeterministic behavior of the forward
         res = Holder()
         weak_holder_list.append(weakref.ref(res))
+        print(f"Packing {id(x)} with holder {id(res)} with ref {id(weak_holder_list[-1])}")
         return res
 
 
     def unpack(x):
         unpack_counter = 0
+        print(f"Unpacking holder {id(x)}, {len(storage)}")
         if len(storage) == 0:
             def inner_pack(inner):
                 nonlocal unpack_counter
@@ -392,10 +397,15 @@ def _checkpoint_without_reentrant(function, preserve_rng_state=True, *args, **kw
                 # If the holder went out of scope, the SavedVariable is dead and so
                 # the value will never be read from the storage. Skip filling it.
                 if weak_holder_list[unpack_counter - 1]() is None:
+                    print(f"Inner pack {unpack_counter} got {id(weak_holder_list[unpack_counter - 1])} but it is dead")
                     return
                 # Use detach here to ensure we don't keep the temporary autograd
                 # graph created during the second forward
                 storage[weak_holder_list[unpack_counter - 1]()] = inner.detach()
+                print(f"Inner pack {unpack_counter} got {id(weak_holder_list[unpack_counter - 1]())} ref {id(weak_holder_list[unpack_counter - 1])} and populated!")
+                print(f"{len(storage)} vs {len(weak_holder_list)}")
+                if len(storage) == len(weak_holder_list):
+                    raise CheckpointAllComputedError()
                 return
 
             def inner_unpack(packed):
@@ -417,7 +427,14 @@ def _checkpoint_without_reentrant(function, preserve_rng_state=True, *args, **kw
                      torch.cuda.amp.autocast(**gpu_autocast_kwargs), \
                      torch.cpu.amp.autocast(**cpu_autocast_kwargs), \
                      torch.autograd.graph.saved_tensors_hooks(inner_pack, inner_unpack):
-                    _unused = function(*args, **kwargs)
+                    try:
+                        _unused = function(*args, **kwargs)
+                    except Exception as e:
+                        # We should be able to catch CheckpointAllComputedError
+                        # We're doing something very wrong here as it ends up being
+                        # a regular RuntimeError
+                        if "CheckpointAllComputedError" not in str(e):
+                            raise e
 
         if x not in storage:
             raise RuntimeError(

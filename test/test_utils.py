@@ -799,5 +799,35 @@ class TestCppExtensionUtils(TestCase):
         self.assertTrue(torch.utils.cpp_extension.check_compiler_ok_for_platform('cc'))
 
 
-if __name__ == '__main__':
-    run_tests()
+# if __name__ == '__main__':
+#     run_tests()
+
+import torch
+from torch.utils.checkpoint import checkpoint
+import torchviz
+from functools import partial
+from functorch import grad
+
+def inner_f(y):
+    y1 = y ** 2
+    y2 = y1 ** 2
+    y3 = y2 ** 2
+    z = y3.sum()
+    return z
+
+def f(y):
+    grads = grad(inner_f)(y)
+    grads = grads ** 2
+    return grads
+
+f = partial(checkpoint, f, use_reentrant=False)
+
+def g(x):
+    grads = grad(lambda x: f(x).sum())(x)
+    grads = grads ** 2
+    return grads
+
+x = torch.rand(2, requires_grad=False)
+
+l = g(x)
+print(l)
