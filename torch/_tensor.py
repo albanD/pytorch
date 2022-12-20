@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch._C as _C
-import torch.utils.hooks as hooks
+from torch.utils import hooks
 from torch._namedtensor_internals import (
     check_serializing_named_tensor,
     is_ellipsis,

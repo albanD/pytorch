@@ -3,6 +3,7 @@ import functools
 import inspect
 import logging
 import os
+import ctypes
 import sys
 import textwrap
 import threading
@@ -203,6 +204,10 @@ class _TorchDynamoContext:
 
             on_enter()
             prior = set_eval_frame(callback)
+            print(backend_ctx_ctor)
+            # b = (torch.rand(2) for _ in range(3))
+            b = torch.nn.Linear(2,2)
+            print(backend_ctx_ctor)
             backend_ctx = backend_ctx_ctor()
             backend_ctx.__enter__()
             dynamic_ctx = enable_dynamic(self.dynamic)
@@ -298,12 +303,53 @@ class DisableContext(_TorchDynamoContext):
     def __init__(self):
         super().__init__(callback=None)
 
+class _PyInterpreterFrame(ctypes.Structure):
+    pass
+
+_PyInterpreterFrame._fields_ = [
+    ("f_func", ctypes.py_object),
+    ("f_globals", ctypes.py_object),
+    ("f_builtins", ctypes.py_object),
+    ("f_locals", ctypes.py_object),
+    ("f_code", ctypes.py_object),
+    ("frame_obj", ctypes.py_object),
+    ("previous", ctypes.POINTER(_PyInterpreterFrame)),
+    ("prev_instr", ctypes.c_ushort),
+    ("stacktop", ctypes.c_int),
+    ("is_entry", ctypes.c_bool),
+    ("owner", ctypes.c_char),
+    ("localsplus", ctypes.py_object * 1),
+]
+    # /* "Specials" section */
+    # PyFunctionObject *f_func; /* Strong reference */
+    # PyObject *f_globals; /* Borrowed reference */
+    # PyObject *f_builtins; /* Borrowed reference */
+    # PyObject *f_locals; /* Strong reference, may be NULL */
+    # PyCodeObject *f_code; /* Strong reference */
+    # PyFrameObject *frame_obj; /* Strong reference, may be NULL */
+    # /* Linkage section */
+    # struct _PyInterpreterFrame *previous;
+    # // NOTE: This is not necessarily the last instruction started in the given
+    # // frame. Rather, it is the code unit *prior to* the *next* instruction. For
+    # // example, it may be an inline CACHE entry, an instruction we just jumped
+    # // over, or (in the case of a newly-created frame) a totally invalid value:
+    # _Py_CODEUNIT *prev_instr;
+    # int stacktop;     /* Offset of TOS from localsplus  */
+    # bool is_entry;  // Whether this is the "root" frame for the current _PyCFrame.
+    # char owner;
+    # /* Locals and stack */
+    # PyObject *localsplus[1];
+
 
 def catch_errors_wrapper(callback, hooks: Hooks):
     @functools.wraps(callback)
-    def catch_errors(frame, cache_size):
+    def catch_errors(ptr, cache_size, lasti):
+        # frame = ctypes.cast(ptr, ctypes.POINTER(_PyInterpreterFrame))[0]
+        frame = ctypes.cast(ptr, ctypes.POINTER(_PyInterpreterFrame))[0]
+
+        print("NEW FRAME")
         if (
-            frame.f_lasti >= 0
+            lasti >= 0
             or skipfiles.check(frame.f_code.co_filename)
             or config.disable
         ):
@@ -329,6 +375,11 @@ def catch_errors_wrapper(callback, hooks: Hooks):
                     return hijacked_callback(frame, cache_size, hooks)
 
         with compile_lock:
+            import dis
+            print("HERE", list(dis.get_instructions(frame.f_code)))
+            print(frame)
+            print(frame.f_func)
+            input()
             return callback(frame, cache_size, hooks)
 
     catch_errors._torchdynamo_orig_callable = callback  # type: ignore[attr-defined]
@@ -383,7 +434,10 @@ def lookup_backend(compiler_fn):
 
 class _NullDecorator(contextlib.nullcontext):  # type: ignore[type-arg]
     def __call__(self, fn):
-        assert callable(fn)
+        if not callable(fn):
+            raise RuntimeError("The positional argument passed to torch.compile is not "
+                               f"a callable function but '{fn}'. Make sure to pass all "
+                               "arguments as kwargs to torch.compile except the model.")
         return fn
 
 
@@ -433,12 +487,6 @@ def optimize(
         warnings.warn(
             "Windows is not currently supported, "
             + f"{config.dynamo_import}.optimize() will do nothing"
-        )
-        return _NullDecorator()
-    if sys.version_info >= (3, 11):
-        warnings.warn(
-            "Python 3.11+ not yet supported, "
-            f"{config.dynamo_import}.optimize() will do nothing"
         )
         return _NullDecorator()
 

@@ -260,13 +260,17 @@ def fix_extended_args(instructions: List[Instruction]):
 
 
 def instruction_size(inst):
+    if inst.opname == "BINARY_OP":
+        return 4
     return 2
 
 
 def check_offsets(instructions):
     offset = 0
     for inst in instructions:
+        print(inst, offset)
         assert inst.offset == offset
+        print("OK!")
         offset += instruction_size(inst)
 
 
