@@ -1311,6 +1311,47 @@ PyObject* THCPModule_setBenchmarkLimitCuDNN(PyObject* _unused, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
+std::vector<int64_t> _extract_tuple(PyObject* inp) {
+  TORCH_CHECK(PyTuple_CheckExact(inp));
+  auto tup_size = PyTuple_GET_SIZE(inp);
+  std::vector<int64_t> res;
+  res.reserve(tup_size);
+  for (const auto i : c10::irange(tup_size)) {
+    res.push_back(THPUtils_unpackLong(PyTuple_GET_ITEM(inp, i)));
+  }
+  return res;
+}
+
+static PyObject* THCPModule_cudaConstruct(PyObject* _unused, PyObject* args) {
+  HANDLE_TH_ERRORS
+  TORCH_CHECK(PyTuple_CheckExact(args));
+  auto tup_size = PyTuple_GET_SIZE(args);
+  TORCH_CHECK(tup_size == 5);
+
+  auto size = _extract_tuple(PyTuple_GET_ITEM(args, 0));
+  auto stride = _extract_tuple(PyTuple_GET_ITEM(args, 1));
+  auto storage_offset = THPUtils_unpackLong(PyTuple_GET_ITEM(args, 2));
+  auto dtype_obj = PyTuple_GET_ITEM(args, 3);
+  TORCH_CHECK(THPDtype_Check(dtype_obj));
+  auto dtype = ((THPDtype*)dtype_obj)->scalar_type;
+  // We don't have a THPStorage_Check ?
+  auto stor_obj = PyTuple_GET_ITEM(args, 4);
+  TORCH_CHECK(Py_TYPE(stor_obj) ==
+    reinterpret_cast<PyTypeObject*>(THPStorageClass));
+  auto storage = THPStorage_Unpack(stor_obj);
+
+  auto meta = scalarTypeToTypeMeta(dtype);
+
+  constexpr c10::DispatchKeySet cuda_dks(c10::DispatchKey::CUDA);
+  at::Tensor tensor = at::detail::make_tensor_base<c10::TensorImpl>(
+      std::move(storage), cuda_dks, meta);
+
+  tensor.unsafeGetTensorImpl()->set_sizes_and_strides(size, stride, storage_offset);
+  return THPVariable_Wrap(std::move(tensor));
+  END_HANDLE_TH_ERRORS
+}
+
+
 PyObject* THCPModule_benchmarkLimitCuDNN(PyObject* _unused, PyObject* noargs) {
   return THPUtils_packInt32(at::globalContext().benchmarkLimitCuDNN());
 }
@@ -1432,6 +1473,10 @@ static struct PyMethodDef _THCPModule_methods[] = {
      nullptr},
     {"_cuda_set_cudnn_benchmark_limit",
      THCPModule_setBenchmarkLimitCuDNN,
+     METH_O,
+     nullptr},
+    {"_cuda_construct",
+     THCPModule_cudaConstruct,
      METH_O,
      nullptr},
 #ifdef USE_NCCL
