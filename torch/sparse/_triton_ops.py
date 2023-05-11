@@ -1,6 +1,8 @@
 import torch
 from torch._inductor.cuda_properties import get_device_capability
 
+import functools
+from typing import Optional, Tuple
 
 def _has_triton():
     if not torch.cuda.is_available():
@@ -88,10 +90,10 @@ def launch_kernel(kernel, tensor_dims_map, full_grid, grid_blocks=None):
     for grid, *sliced_tensors in grid_partitioner(full_grid, grid_blocks, tensor_dims_map):
         kernel(grid, *sliced_tensors)
 
-if _has_triton():
+@functools.cache
+def _get_bsr_strided_dense_rowspace_kernel():
     import triton
     import triton.language as tl
-    from typing import Optional, Tuple
 
     @triton.jit
     def _bsr_strided_dense_rowspace_kernel(
@@ -216,10 +218,15 @@ if _has_triton():
         # write back the result
         tl.store(output_ptrs, output_acc_block.to(output_ptr.dtype.element_ty))
 
+    return _bsr_strided_dense_rowspace_kernel
 
+# Just to make the git diff easier to read
+if True:
     def _run_dense_rowspace_kernel(
         blocksize, values, crow_indices, col_indices, dense, output, max_grid
     ):
+        import triton.language as tl
+
         n_batches = dense.size(0)
         n_block_rows = crow_indices.size(-1) - 1
         n_block_cols = dense.size(-3)
@@ -244,7 +251,7 @@ if _has_triton():
             allow_tf32 = False
 
         def kernel(grid, *sliced_tensors):
-            _bsr_strided_dense_rowspace_kernel[grid](
+            _get_bsr_strided_dense_rowspace_kernel()[grid](
                 *blocksize,
                 *ptr_stride_extractor(*sliced_tensors),
                 acc_dtype=acc_dtype,
@@ -265,6 +272,10 @@ if _has_triton():
         max_grid: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None,
         out: Optional[torch.Tensor] = None,
     ):
+
+        if not _has_triton():
+            raise RuntimeError("This shouldn't be called when triton is not available")
+
         def check(cond, msg):
             if not cond:
                 raise ValueError(msg)
@@ -421,5 +432,3 @@ if _has_triton():
         kernel(blocksize, values, crow_indices, col_indices, dense, out, max_grid)
 
         return out_backup
-else:
-    bsr_dense_mm = None  # type: ignore[assignment]
