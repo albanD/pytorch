@@ -61,11 +61,13 @@ contributors and other interested parties understand the
 future direction of the project and can participate in discussion.
 
 Responsibilities of the maintainer includes:
+* Ensure owned modules follow the PyTorch design philosophy
+* Fully triage both issues and pull requests within 1 week of creation
+* Provide guidance, reviews and assistance in closing high priority issues and pull requests
+* Ensure proper documentation related to newly added APIs for owned modules
+* Respond within 1 week for cross module issues from other module maintainers
+* Attend issue triage meeting regularly (based on number of issues from the module marked triage-review)
 
-* Triaging high priority issues of the module
-* Triaging and reviewing and landing high priority pull requests of the module
-* Supporting public documentation related to the module
-* Running public developer meetings
 
 Core Maintainers
 ----------------
@@ -117,12 +119,11 @@ The Principles
   aligned with how the component fits in overall PyTorch direction.
 * For membership in the maintainer group the individual has to
   demonstrate strong and continued alignment with the overall
-  PyTorch principles.
+  PyTorch philosophy.
 * No term limits for module maintainers or core maintainers
-* Light criteria of moving module maintenance to ‘emeritus’
-  status if they don’t actively participate over long periods
-  of time. Each module maintainer group may define the inactive
-  period that’s appropriate for that module.
+* Maintainers should continue performing all responsibilities
+  listed above over time. Otherwise maintainers will become
+  ‘emeritus’ after some period.
 * The membership is for an individual, not a company.
 
 The Process for Nomination
@@ -153,6 +154,8 @@ The Process for Removal
   can nominate a person to be removed from a Module maintainer
   position or a Core maintainer position.
 * A person can also self-nominate to be removed
+* There can be an automatic nomination process for maintainers
+  not following the expectations layed out above.
 * The core maintainers (excluding persons with conflict of
   interest) will request or put together more information around
   the following:
@@ -235,7 +238,7 @@ Uncontroversial Changes
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Primary work happens through issues and pull requests on
-GitHub. Maintainers should avoid pushing their changes directly to
+GitHub. Even maintainers should not push their changes directly to
 the PyTorch repository, instead relying on pull requests. Approving a
 pull request by a core or module maintainer allows it to be merged
 without further process. Core and module maintainers, as listed on
@@ -316,12 +319,9 @@ see the `PyTorch Contributor
 Wiki <https://github.com/pytorch/pytorch/wiki/The-Ultimate-Guide-to-PyTorch-Contributions>`__ for contribution
 for a walkthrough.
 
-**Q: Can I become a committer on the project?** Unfortunately, the
-current commit process to PyTorch involves an interaction with Facebook
-infrastructure that can only be triggered by Facebook employees. We are
-however looking at ways to expand the committer base to individuals
-outside of Facebook and will provide an update when the tooling exists
-to allow this.
+**Q: Can I become a committer on the project?** All module owners can
+be committers for the module they own. See above on how to start
+contributing to the project and eventually become a committer.
 
 **Q: What if I would like to deliver a PyTorch tutorial at a conference
 or otherwise? Do I need to be 'officially' a committer to do this?** No,
