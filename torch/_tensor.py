@@ -70,7 +70,6 @@ def _rebuild_from_type_v2(func, new_type, args, state):
         ret = torch._utils._set_obj_state(ret, state)
     return ret
 
-
 # NB: If you subclass Tensor, and want to share the subclassed class
 # across processes, you must also update torch/multiprocessing/reductions.py
 # to define a ForkingPickler serialization mode for the class.
@@ -78,7 +77,7 @@ def _rebuild_from_type_v2(func, new_type, args, state):
 # NB: If you add a new method to Tensor, you must update
 # torch/_C/__init__.pyi.in to add a type annotation for your method;
 # otherwise, it will not show up in autocomplete.
-class Tensor(torch._C.TensorBase):
+class TensorInner(torch._C.TensorBase):
     def __deepcopy__(self, memo):
         if has_torch_function_unary(self):
             return handle_torch_function(Tensor.__deepcopy__, (self,), self, memo)
@@ -1526,6 +1525,8 @@ class Tensor(torch._C.TensorBase):
 
     __module__ = "torch"
 
+class Tensor(TensorInner):
+    pass
 
 def _convert(ret, cls):
     if cls is Tensor:

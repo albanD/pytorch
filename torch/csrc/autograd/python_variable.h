@@ -34,6 +34,7 @@ TORCH_PYTHON_API void registerPythonTensorClass(
 TORCH_PYTHON_API void activateGPUTrace();
 
 TORCH_PYTHON_API extern PyObject* THPVariableClass;
+TORCH_PYTHON_API extern PyObject* THPVariableInnerClass;
 TORCH_PYTHON_API extern PyObject* ParameterClass;
 
 bool THPVariable_initModule(PyObject* module);

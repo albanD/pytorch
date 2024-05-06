@@ -96,6 +96,10 @@ PyObject* THPAutograd_initExtension(PyObject* _unused, PyObject* unused) {
   THPVariableClass = PyObject_GetAttrString(tensor_module, "Tensor");
   if (!THPVariableClass)
     return nullptr;
+  // NOTE: "leaks" THPVariableInnerClass
+  THPVariableInnerClass = PyObject_GetAttrString(tensor_module, "TensorInner");
+  if (!THPVariableInnerClass)
+    return nullptr;
 
   auto autograd_module = THPObjectPtr(PyImport_ImportModule("torch.autograd"));
   if (!autograd_module)

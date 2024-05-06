@@ -43,6 +43,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 using namespace at;
 using namespace torch;
@@ -202,6 +203,7 @@ c10::TensorImpl::SizesStridesPolicy parseSizesStridesPolicyArgument(
 } // anonymous namespace
 
 PyObject* THPVariableClass = nullptr;
+PyObject* THPVariableInnerClass = nullptr;
 
 PyObject* ParameterClass = nullptr;
 
@@ -1872,7 +1874,7 @@ PyObject* THPVariable_pynew(
 // NB: this is not the tp_dealloc on THPVariable; instead, its the dealloc
 // on subclasses.  It's never valid to construct a THPVariable so it's not
 // necessary to implement the dealloc for that case
-void THPVariable_subclass_dealloc(PyObject* self) {
+void THPVariable_subclass_dealloc2(PyObject* self) {
   if (THPVariable_tryResurrect((THPVariable*)self))
     return;
 
@@ -2253,15 +2255,34 @@ static int THPVariable_subclass_traverse(
   return 0;
 }
 
+void THPVariable_subclass_dealloc(PyObject* self) {
+  if (THPVariable_tryResurrect((THPVariable*)self))
+    return;
+
+  Py_INCREF(THPVariableInnerClass);
+  PyTypeObject* old_type = Py_TYPE(self);
+  Py_SET_TYPE(self, (PyTypeObject*)THPVariableInnerClass);
+  Py_DECREF(old_type);
+
+  PyObject_GC_UnTrack(self);
+  ((PyTypeObject*)THPVariableInnerClass)->tp_dealloc(self);
+}
+
 int THPVariableMetaType_init(PyObject* cls, PyObject* args, PyObject* kwargs) {
   if (PyType_Type.tp_init(cls, args, kwargs) < 0) {
     return -1;
   }
+
+  // Keep the original destructor on TensorInner
+  if (std::string(((PyTypeObject*)cls)->tp_name) == "TensorInner") {
+    return 0;
+  }
+
   ((PyTypeObject*)cls)->tp_dealloc = (destructor)THPVariable_subclass_dealloc;
   ((PyTypeObject*)cls)->tp_traverse =
       (traverseproc)THPVariable_subclass_traverse;
 
-  // Don't do anything for the base Tensor class
+  // Don't do anything for the base Tensor class doesn't exist
   if (!THPVariableClass) {
     return 0;
   }
