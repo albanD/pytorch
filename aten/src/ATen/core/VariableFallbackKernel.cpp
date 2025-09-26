@@ -100,6 +100,10 @@ TORCH_LIBRARY_IMPL(_, AutogradMeta, m) {
   m.fallback(AUTOGRAD_FALLBACK);
 }
 
+TORCH_LIBRARY_IMPL(_, AutogradPrivateUse1, m) {
+  m.fallback(AUTOGRAD_FALLBACK);
+}
+
 // see Note [ADInplaceOrView key]
 TORCH_LIBRARY_IMPL(_, ADInplaceOrView, m) {
   m.fallback(torch::CppFunction::makeFallthrough());
