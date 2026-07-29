@@ -32,6 +32,70 @@ def scm_root() -> str:
 
 PYTORCH_ROOT = scm_root()
 
+GCC_DISABLED_CHECKS = ",".join(
+    [
+        "-bugprone-argument-comment",
+        "-bugprone-branch-clone",
+        "-bugprone-casting-through-void",
+        "-bugprone-crtp-constructor-accessibility",
+        "-bugprone-empty-catch",
+        "-bugprone-exception-escape",
+        "-bugprone-implicit-widening-of-multiplication-result",
+        "-bugprone-inc-dec-in-conditions",
+        "-bugprone-narrowing-conversions",
+        "-bugprone-optional-value-conversion",
+        "-bugprone-signed-char-misuse",
+        "-bugprone-switch-missing-default-case",
+        "-bugprone-unchecked-optional-access",
+        "-bugprone-use-after-move",
+        "-clang-analyzer-core.BitwiseShift",
+        "-clang-analyzer-core.NullDereference",
+        "-clang-analyzer-cplusplus.Move",
+        "-clang-analyzer-deadcode.DeadStores",
+        "-clang-analyzer-optin.cplusplus.VirtualCall",
+        "-clang-analyzer-optin.performance.Padding",
+        "-clang-analyzer-unix.BlockInCriticalSection",
+        "-clang-analyzer-unix.StdCLibraryFunctions",
+        "-clang-diagnostic-delete-incomplete",
+        "-clang-diagnostic-macro-redefined",
+        "-clang-diagnostic-unused-function",
+        "-cppcoreguidelines-avoid-c-arrays",
+        "-cppcoreguidelines-avoid-const-or-ref-data-members",
+        "-cppcoreguidelines-init-variables",
+        "-cppcoreguidelines-missing-std-forward",
+        "-cppcoreguidelines-narrowing-conversions",
+        "-cppcoreguidelines-noexcept-move-operations",
+        "-cppcoreguidelines-no-malloc",
+        "-cppcoreguidelines-prefer-member-initializer",
+        "-cppcoreguidelines-pro-type-const-cast",
+        "-cppcoreguidelines-pro-type-member-init",
+        "-cppcoreguidelines-rvalue-reference-param-not-moved",
+        "-cppcoreguidelines-special-member-functions",
+        "-misc-header-include-cycle",
+        "-misc-use-internal-linkage",
+        "-modernize-avoid-c-arrays",
+        "-modernize-deprecated-headers",
+        "-modernize-loop-convert",
+        "-modernize-pass-by-value",
+        "-modernize-use-emplace",
+        "-modernize-use-equals-default",
+        "-modernize-use-nullptr",
+        "-modernize-use-std-numbers",
+        "-performance-avoid-endl",
+        "-performance-for-range-copy",
+        "-performance-inefficient-vector-operation",
+        "-performance-move-const-arg",
+        "-performance-noexcept-move-constructor",
+        "-performance-no-int-to-ptr",
+        "-performance-unnecessary-copy-initialization",
+        "-performance-unnecessary-value-param",
+        "-readability-container-size-empty",
+        "-readability-named-parameter",
+        "-readability-redundant-casting",
+        "-readability-redundant-member-init",
+    ]
+)
+
 
 def _default_num_workers() -> int | None:
     # clang-tidy is memory hungry, so respect MAX_JOBS to cap parallelism.
@@ -147,9 +211,12 @@ include_dir = [
     # For header-only lints (no compile_commands.json entry) to resolve <ATen/...>.
     os.path.join(PYTORCH_ROOT, "aten/src"),
     PYTORCH_ROOT,
-] + clang_search_dirs()
+]
 for dir in include_dir:
     include_args += ["--extra-arg", f"-I{dir}"]
+compiler_include_args = []
+for dir in clang_search_dirs():
+    compiler_include_args += ["--extra-arg", f"-I{dir}"]
 
 
 def check_file(
@@ -160,15 +227,37 @@ def check_file(
 ) -> list[LintMessage]:
     # Explicitly pass include path for linters that only check headers.
     # build/aten/src covers generated <ATen/...> headers (Functions.h etc.).
-    build_include_args = include_args + [
-        "--extra-arg",
-        f"-I{build_dir}",
-        "--extra-arg",
-        f"-I{build_dir}/aten/src",
-    ]
-    cmd = [
-        binary,
-        f"-p={build_dir}",
+    gcc_args_path = build_dir / "gcc_clang_tidy_args.json"
+    if gcc_args_path.exists():
+        compiler_args = []
+        for arg in json.loads(gcc_args_path.read_text()):
+            compiler_args += ["--extra-arg", arg]
+    else:
+        compiler_args = compiler_include_args
+
+    build_include_args = (
+        include_args
+        + compiler_args
+        + [
+            "--extra-arg",
+            f"-I{build_dir}",
+            "--extra-arg",
+            f"-I{build_dir}/aten/src",
+        ]
+    )
+    header_compile_db = build_dir / "headers" if filename.endswith((".h", ".hpp", ".hxx")) else None
+    cmd = [binary, f"-p={build_dir}"]
+    if gcc_args_path.exists():
+        cmd.append(
+            "--config="
+            + json.dumps(
+                {
+                    "InheritParentConfig": True,
+                    "Checks": GCC_DISABLED_CHECKS,
+                }
+            )
+        )
+    cmd += [
         *build_include_args,
         filename,
     ]
@@ -192,14 +281,27 @@ def check_file(
                 description=(f"Failed due to {err.__class__.__name__}:\n{err}"),
             )
         ]
+    if (
+        header_compile_db is not None
+        and header_compile_db.joinpath("compile_commands.json").exists()
+        and "[clang-diagnostic-error]" in proc.stdout.decode()
+    ):
+        cmd[1] = f"-p={header_compile_db}"
+        proc = run_command(cmd)
+
     lint_messages = []
+    output = proc.stdout.decode()
     try:
         # Change the current working directory to the build directory, since
         # clang-tidy will report files relative to the build directory.
         saved_cwd = os.getcwd()
         os.chdir(build_dir)
 
-        for match in RESULTS_RE.finditer(proc.stdout.decode()):
+        for match in RESULTS_RE.finditer(output):
+            if match["severity"] not in severities:
+                continue
+            if gcc_args_path.exists() and match["code"] == "[clang-diagnostic-error]":
+                continue
             # Convert the reported path to an absolute path.
             abs_path = str(Path(match["file"]).resolve())
             if not abs_path.startswith(PYTORCH_ROOT):
@@ -220,6 +322,22 @@ def check_file(
             lint_messages.append(message)
     finally:
         os.chdir(saved_cwd)
+
+    if proc.returncode and not lint_messages and not gcc_args_path.exists():
+        stderr = proc.stderr.decode().strip()
+        return [
+            LintMessage(
+                path=filename,
+                line=None,
+                char=None,
+                code="CLANGTIDY",
+                severity=LintSeverity.ERROR,
+                name="command-failed",
+                original=None,
+                replacement=None,
+                description=f"clang-tidy exited with code {proc.returncode}:\n{stderr}\n{output}",
+            )
+        ]
 
     return lint_messages
 

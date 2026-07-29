@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import shlex
 import subprocess
 import sys
+from pathlib import Path
+
+
+BUILD_DIR = "build/clang-tidy"
 
 
 def run_cmd(cmd: list[str]) -> None:
@@ -22,12 +28,56 @@ def run_cmd(cmd: list[str]) -> None:
         sys.exit(1)
 
 
+def normalize_gcc_commands() -> None:
+    path = Path(BUILD_DIR, "compile_commands.json")
+    commands = json.loads(path.read_text())
+    header_commands = []
+    for command in commands:
+        args = [arg for arg in shlex.split(command["command"]) if arg != "-fopenmp"]
+        command["command"] = shlex.join(args)
+
+        header_args = []
+        i = 0
+        while i < len(args):
+            if args[i] == "-Winvalid-pch":
+                i += 1
+                continue
+            if args[i] == "-include" and "cmake_pch.hxx" in args[i + 1]:
+                i += 2
+                continue
+            header_args.append(args[i])
+            i += 1
+        header_commands.append({**command, "command": shlex.join(header_args)})
+
+    path.write_text(json.dumps(commands))
+    header_dir = Path(BUILD_DIR, "headers")
+    header_dir.mkdir(exist_ok=True)
+    Path(header_dir, "compile_commands.json").write_text(json.dumps(header_commands))
+
+    install_dir = subprocess.check_output(
+        ["g++", "-print-search-dirs"], text=True
+    ).splitlines()[0]
+    toolchain = Path(install_dir.removeprefix("install: ")).resolve().parents[3]
+    builtin_include = subprocess.check_output(
+        ["g++", "-print-file-name=include"], text=True
+    ).strip()
+    Path(BUILD_DIR, "gcc_clang_tidy_args.json").write_text(
+        json.dumps(
+            [
+                f"--gcc-toolchain={toolchain}",
+                f"-I{builtin_include}",
+                "-Wno-invalid-constexpr",
+            ]
+        )
+    )
+
+
 def update_submodules() -> None:
     run_cmd(["git", "submodule", "update", "--init", "--recursive"])
 
 
 def gen_compile_commands() -> None:
-    """Configure cmake to produce build/compile_commands.json for clang-tidy.
+    """Configure cmake to produce compile_commands.json for clang-tidy.
 
     Configure-only invocation; does not run the build step. The repo-level
     cmake/EnvVarForwarding.cmake forwards BUILD_*/USE_* environment
@@ -35,10 +85,16 @@ def gen_compile_commands() -> None:
     in os.environ before this call propagates them through to CMake.
     """
     os.environ["USE_NCCL"] = "0"
+    cc = os.environ.get("CLANGTIDY_CC")
+    cxx = os.environ.get("CLANGTIDY_CXX")
+    if cc:
+        os.environ["CC"] = cc
+    if cxx:
+        os.environ["CXX"] = cxx
     os.environ["USE_PRECOMPILED_HEADERS"] = "1"
-    os.environ["CC"] = "clang"
-    os.environ["CXX"] = "clang++"
-    run_cmd(["cmake", "-S", ".", "-B", "build", "-G", "Ninja"])
+    run_cmd(["cmake", "-S", ".", "-B", BUILD_DIR, "-G", "Ninja"])
+    if cc != "clang":
+        normalize_gcc_commands()
 
 
 def run_autogen() -> None:
@@ -50,7 +106,7 @@ def run_autogen() -> None:
             "-s",
             "aten/src/ATen",
             "-d",
-            "build/aten/src/ATen",
+            f"{BUILD_DIR}/aten/src/ATen",
             "--per-operator-headers",
         ]
     )

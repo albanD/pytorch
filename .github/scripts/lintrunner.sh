@@ -32,6 +32,8 @@ fi
 
 # Do build steps necessary for linters
 if [[ "${CLANG}" == "1" ]]; then
+    export CLANGTIDY_CC=clang
+    export CLANGTIDY_CXX=clang++
     spin regenerate-clangtidy-files
 fi
 
